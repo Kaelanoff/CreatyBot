@@ -34,7 +34,9 @@ const client = new Client({
     GatewayIntentBits.GuildMembers
   ],
   partials: [
-    Partials.GuildMember
+    Partials.GuildMember,
+    Partials.Channel,
+    Partials.User
   ],
   presence: {
     status: 'online',
@@ -49,99 +51,24 @@ const client = new Client({
 
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
 const CONFIG_FILE = path.join(DATA_DIR, 'config.json');
+const OPS_FILE = path.join(DATA_DIR, 'operations.json');
 
-function ensureData() {
-  if (!fs.existsSync(DATA_DIR)) {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
-  }
-
-  if (!fs.existsSync(CONFIG_FILE)) {
-    fs.writeFileSync(
-      CONFIG_FILE,
-      JSON.stringify(
-        {
-          guilds: {}
-        },
-        null,
-        2
-      )
-    );
-  }
-}
-
-function loadConfig() {
-  ensureData();
-  return JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8'));
-}
-
-function saveConfig(data) {
-  ensureData();
-  fs.writeFileSync(CONFIG_FILE, JSON.stringify(data, null, 2));
-}
-
-function ensureGuildConfig(guildId) {
-  const data = loadConfig();
-
-  if (!data.guilds[guildId]) {
-    data.guilds[guildId] = {
-      channels: {},
-      categories: {},
-      roles: {},
-      panels: {}
-    };
-    saveConfig(data);
-  }
-
-  if (!data.guilds[guildId].panels) {
-    data.guilds[guildId].panels = {};
-    saveConfig(data);
-  }
-
-  return data.guilds[guildId];
-}
-
-function updateGuildConfig(guildId, section, key, value) {
-  const data = loadConfig();
-
-  if (!data.guilds[guildId]) {
-    data.guilds[guildId] = {
-      channels: {},
-      categories: {},
-      roles: {},
-      panels: {}
-    };
-  }
-
-  if (!data.guilds[guildId][section]) {
-    data.guilds[guildId][section] = {};
-  }
-
-  data.guilds[guildId][section][key] = value;
-  saveConfig(data);
-}
-
-function getGuildConfig(guildId) {
-  return ensureGuildConfig(guildId);
-}
-
-function isAdmin(member) {
-  return Boolean(
-    member &&
-    member.permissions &&
-    member.permissions.has(PermissionFlagsBits.Administrator)
-  );
-}
-
-function makeEmbed(title, description, color = 0x5865F2) {
-  return new EmbedBuilder()
-    .setTitle(title)
-    .setDescription(description)
-    .setColor(color)
-    .setTimestamp()
-    .setFooter({
-      text: 'Creaty Bot'
-    });
-}
+const ORDER_STAGES = [
+  'Commande reçue',
+  'Initialisation',
+  'Analyse du projet',
+  'Préparation',
+  'Création',
+  'Développement',
+  'Configuration',
+  'Tests internes',
+  'Période de test',
+  'Corrections',
+  'Finalisation',
+  'Prêt à livrer',
+  'Livré',
+  'Terminé'
+];
 
 const RULES_TEXT = [
   '**Bienvenue sur Creaty Bot.**',
@@ -265,12 +192,15 @@ const CHANNEL_KEYS = [
   ['projets_secrets', 'Projets secrets'],
   ['gestion_financiere', 'Gestion financière'],
   ['acces_total', 'Accès total'],
-  ['journal_direction', 'Journal de direction']
+  ['journal_direction', 'Journal de direction'],
+  ['logs', 'Logs internes']
 ];
 
 const CATEGORY_KEYS = [
   ['support', 'Catégorie Support'],
   ['tickets', 'Catégorie Tickets'],
+  ['devis_prives', 'Catégorie Devis privés'],
+  ['commandes_privees', 'Catégorie Commandes privées'],
   ['projets_clients', 'Catégorie Projets clients'],
   ['clients', 'Catégorie Clients'],
   ['premium', 'Catégorie Premium'],
@@ -303,7 +233,7 @@ const PANEL_DEFINITIONS = {
   bienvenue: {
     title: '👋 Bienvenue',
     description:
-      'Bienvenue sur **Creaty Bot**.\n\nChaque nouveau membre sera accueilli ici avec sa photo de profil, sa mention et le nombre total de membres du serveur.',
+      'Bienvenue sur **Creaty Bot**.\n\nChaque nouveau membre sera accueilli ici automatiquement avec sa photo de profil, sa mention et le nombre total de membres du serveur.',
     color: 0x57F287
   },
   depart: {
@@ -327,7 +257,7 @@ const PANEL_DEFINITIONS = {
   info: {
     title: '📌 Informations',
     description:
-      'Retrouve ici les informations essentielles concernant **Creaty Bot**, son fonctionnement, ses services, son organisation et les moyens de contacter l’équipe.',
+      'Retrouve ici les informations essentielles concernant **Creaty Bot**, son fonctionnement, ses services et son organisation.',
     color: 0x3498DB
   },
   roadmap: {
@@ -339,7 +269,7 @@ const PANEL_DEFINITIONS = {
   liens: {
     title: '🔗 Nos liens',
     description:
-      'Tous les liens officiels de Creaty Bot seront regroupés ici. Utilise uniquement les liens publiés dans ce salon pour éviter les faux sites ou arnaques.',
+      'Tous les liens officiels de Creaty Bot seront regroupés ici. Utilise uniquement les liens publiés dans ce salon.',
     color: 0x3498DB
   },
   faq: {
@@ -430,7 +360,7 @@ const PANEL_DEFINITIONS = {
     description:
       'Les tarifs officiels des services Creaty Bot sont publiés ici. Pour un projet personnalisé, demande un devis.',
     color: 0xF1C40F,
-    component: 'service'
+    component: 'quote_request'
   },
   garantie: {
     title: '📃 Garantie',
@@ -441,28 +371,30 @@ const PANEL_DEFINITIONS = {
   commander: {
     title: '📝 Commander',
     description:
-      'Pour commander un service, commence par demander un devis. Une fois le devis accepté, ta commande sera enregistrée et suivie par l’équipe.',
+      'Pour commander un service, commence par demander un devis. Une fois le devis accepté, une commande privée sera créée pour l’équipe et tu pourras suivre son avancement ici.',
     color: 0x5865F2,
-    component: 'service'
+    component: 'quote_request'
   },
   demander_devis: {
     title: '💰 Demander un devis',
     description:
-      'Présente ton projet à l’équipe pour recevoir une estimation personnalisée. Un membre du pôle commercial pourra ensuite étudier ta demande.',
+      'Présente ton projet à l’équipe pour recevoir une estimation personnalisée. Clique sur le bouton ci-dessous pour envoyer ta demande.',
     color: 0xF1C40F,
-    component: 'service'
+    component: 'quote_request'
   },
   suivi_commandes: {
-    title: '📦 Suivi des commandes',
+    title: '📦 Suivi de commande',
     description:
-      'Ce salon est dédié au suivi des commandes et à l’avancement des projets clients.',
-    color: 0x3498DB
+      'Clique sur **Voir mes commandes** pour consulter uniquement tes propres commandes. La réponse sera privée et visible uniquement par toi.',
+    color: 0x3498DB,
+    component: 'tracking'
   },
   paiements: {
     title: '💳 Paiements',
     description:
-      'Les paiements sont traités uniquement via les moyens officiels communiqués par l’équipe. Ne publie jamais d’informations bancaires sensibles dans un salon public.',
-    color: 0x2ECC71
+      'Une fois ta commande créée, clique sur **Déclarer un paiement**. Le personnel vérifiera ensuite la déclaration avant de lancer le projet.',
+    color: 0x2ECC71,
+    component: 'payment'
   },
   conditions: {
     title: '📜 Conditions de commande',
@@ -631,13 +563,13 @@ const PANEL_DEFINITIONS = {
   devis_commerciaux: {
     title: '📋 Devis commerciaux',
     description:
-      'Suivi interne des demandes de devis.',
+      'Les nouveaux devis créés apparaîtront ici avec leur numéro. Chaque devis possède également un espace privé réservé au personnel.',
     color: 0xF1C40F
   },
   commandes_commerciales: {
     title: '📦 Commandes commerciales',
     description:
-      'Suivi interne des commandes clients.',
+      'Les commandes créées à partir des devis acceptés seront suivies ici. Les détails internes restent réservés au personnel.',
     color: 0x3498DB
   },
   statistiques_commerciales: {
@@ -816,6 +748,137 @@ const PANEL_DEFINITIONS = {
   }
 };
 
+function ensureFiles() {
+  if (!fs.existsSync(DATA_DIR)) {
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+  }
+
+  if (!fs.existsSync(CONFIG_FILE)) {
+    fs.writeFileSync(
+      CONFIG_FILE,
+      JSON.stringify({ guilds: {} }, null, 2)
+    );
+  }
+
+  if (!fs.existsSync(OPS_FILE)) {
+    fs.writeFileSync(
+      OPS_FILE,
+      JSON.stringify(
+        {
+          counters: {
+            tickets: 0,
+            quotes: 0,
+            orders: 0,
+            payments: 0
+          },
+          tickets: {},
+          quotes: {},
+          orders: {},
+          payments: {}
+        },
+        null,
+        2
+      )
+    );
+  }
+}
+
+function loadJson(file) {
+  ensureFiles();
+  return JSON.parse(fs.readFileSync(file, 'utf8'));
+}
+
+function saveJson(file, data) {
+  ensureFiles();
+  fs.writeFileSync(file, JSON.stringify(data, null, 2));
+}
+
+function getGuildConfig(guildId) {
+  const data = loadJson(CONFIG_FILE);
+
+  if (!data.guilds[guildId]) {
+    data.guilds[guildId] = {
+      channels: {},
+      categories: {},
+      roles: {},
+      panels: {}
+    };
+    saveJson(CONFIG_FILE, data);
+  }
+
+  const cfg = data.guilds[guildId];
+  if (!cfg.channels) cfg.channels = {};
+  if (!cfg.categories) cfg.categories = {};
+  if (!cfg.roles) cfg.roles = {};
+  if (!cfg.panels) cfg.panels = {};
+
+  saveJson(CONFIG_FILE, data);
+  return cfg;
+}
+
+function updateGuildConfig(guildId, section, key, value) {
+  const data = loadJson(CONFIG_FILE);
+
+  if (!data.guilds[guildId]) {
+    data.guilds[guildId] = {
+      channels: {},
+      categories: {},
+      roles: {},
+      panels: {}
+    };
+  }
+
+  if (!data.guilds[guildId][section]) {
+    data.guilds[guildId][section] = {};
+  }
+
+  data.guilds[guildId][section][key] = value;
+  saveJson(CONFIG_FILE, data);
+}
+
+function nextId(type, prefix) {
+  const data = loadJson(OPS_FILE);
+  data.counters[type] = (data.counters[type] || 0) + 1;
+  const id = `${prefix}-${String(data.counters[type]).padStart(4, '0')}`;
+  saveJson(OPS_FILE, data);
+  return id;
+}
+
+function isAdmin(member) {
+  return Boolean(
+    member &&
+    member.permissions &&
+    member.permissions.has(PermissionFlagsBits.Administrator)
+  );
+}
+
+function hasStaffAccess(member, config) {
+  if (!member) return false;
+  if (isAdmin(member)) return true;
+
+  const staffRoleIds = [
+    config.roles.staff,
+    config.roles.commercial,
+    config.roles.developpeur,
+    config.roles.moderateur,
+    config.roles.administrateur,
+    config.roles.directeur,
+    config.roles.cofondateur,
+    config.roles.fondateur
+  ].filter(Boolean);
+
+  return member.roles.cache.some(role => staffRoleIds.includes(role.id));
+}
+
+function makeEmbed(title, description, color = 0x5865F2) {
+  return new EmbedBuilder()
+    .setTitle(title)
+    .setDescription(description)
+    .setColor(color)
+    .setTimestamp()
+    .setFooter({ text: 'Creaty Bot' });
+}
+
 function buildComponents(type) {
   if (type === 'rules') {
     return [
@@ -865,17 +928,53 @@ function buildComponents(type) {
     return [
       new ActionRowBuilder().addComponents(
         new ButtonBuilder()
-          .setCustomId('service_devis')
+          .setCustomId('quote_request')
           .setLabel('Demander un devis')
           .setStyle(ButtonStyle.Primary),
         new ButtonBuilder()
-          .setCustomId('service_commander')
+          .setCustomId('ticket_order')
           .setLabel('Commander')
           .setStyle(ButtonStyle.Success),
         new ButtonBuilder()
-          .setCustomId('service_question')
+          .setCustomId('ticket_support')
           .setLabel('Poser une question')
           .setStyle(ButtonStyle.Secondary)
+      )
+    ];
+  }
+
+  if (type === 'quote_request') {
+    return [
+      new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId('quote_request')
+          .setLabel('Demander un devis')
+          .setEmoji('💰')
+          .setStyle(ButtonStyle.Primary)
+      )
+    ];
+  }
+
+  if (type === 'tracking') {
+    return [
+      new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId('my_orders')
+          .setLabel('Voir mes commandes')
+          .setEmoji('📦')
+          .setStyle(ButtonStyle.Primary)
+      )
+    ];
+  }
+
+  if (type === 'payment') {
+    return [
+      new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId('declare_payment')
+          .setLabel('Déclarer un paiement')
+          .setEmoji('💳')
+          .setStyle(ButtonStyle.Success)
       )
     ];
   }
@@ -889,19 +988,13 @@ async function installOrUpdatePanel(guild, key) {
   const definition = PANEL_DEFINITIONS[key];
 
   if (!channelId || !definition) {
-    return {
-      success: false,
-      reason: 'Aucun panneau prévu ou salon non configuré.'
-    };
+    return { success: false };
   }
 
   const channel = guild.channels.cache.get(channelId);
 
   if (!channel || !channel.isTextBased()) {
-    return {
-      success: false,
-      reason: 'Le salon configuré est introuvable ou incompatible.'
-    };
+    return { success: false };
   }
 
   const payload = {
@@ -915,37 +1008,419 @@ async function installOrUpdatePanel(guild, key) {
     components: buildComponents(definition.component)
   };
 
-  const existingMessageId = config.panels?.[key];
+  const existingMessageId = config.panels[key];
 
   if (existingMessageId) {
     try {
       const oldMessage = await channel.messages.fetch(existingMessageId);
       await oldMessage.edit(payload);
-
-      return {
-        success: true,
-        action: 'updated',
-        channel
-      };
-    } catch {
-      // Le message n'existe plus : on en recrée un.
-    }
+      return { success: true, action: 'updated' };
+    } catch {}
   }
 
   const message = await channel.send(payload);
+  updateGuildConfig(guild.id, 'panels', key, message.id);
 
-  updateGuildConfig(
-    guild.id,
-    'panels',
-    key,
-    message.id
+  return { success: true, action: 'created' };
+}
+
+function getStaffOverwrites(guild, config) {
+  const overwrites = [
+    {
+      id: guild.roles.everyone.id,
+      deny: [PermissionFlagsBits.ViewChannel]
+    }
+  ];
+
+  const roleIds = [
+    config.roles.staff,
+    config.roles.commercial,
+    config.roles.developpeur,
+    config.roles.moderateur,
+    config.roles.administrateur,
+    config.roles.directeur,
+    config.roles.cofondateur,
+    config.roles.fondateur
+  ].filter(Boolean);
+
+  for (const roleId of [...new Set(roleIds)]) {
+    overwrites.push({
+      id: roleId,
+      allow: [
+        PermissionFlagsBits.ViewChannel,
+        PermissionFlagsBits.SendMessages,
+        PermissionFlagsBits.ReadMessageHistory,
+        PermissionFlagsBits.AttachFiles,
+        PermissionFlagsBits.ManageMessages
+      ]
+    });
+  }
+
+  return overwrites;
+}
+
+async function createStaffPrivateChannel(guild, config, categoryKey, name) {
+  const categoryId =
+    config.categories[categoryKey] ||
+    config.categories.staff ||
+    config.categories.projets_clients;
+
+  return guild.channels.create({
+    name: name.toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, 90),
+    type: ChannelType.GuildText,
+    parent: categoryId || undefined,
+    permissionOverwrites: getStaffOverwrites(guild, config)
+  });
+}
+
+function ticketStaffRows(ticketId) {
+  return [
+    new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`ticket_claim:${ticketId}`)
+        .setLabel('Prendre le ticket')
+        .setStyle(ButtonStyle.Primary),
+      new ButtonBuilder()
+        .setCustomId(`ticket_quote:${ticketId}`)
+        .setLabel('Créer un devis')
+        .setStyle(ButtonStyle.Success),
+      new ButtonBuilder()
+        .setCustomId(`ticket_close:${ticketId}`)
+        .setLabel('Fermer le ticket')
+        .setStyle(ButtonStyle.Danger)
+    )
+  ];
+}
+
+function quoteStaffRows(quoteId) {
+  return [
+    new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`quote_claim:${quoteId}`)
+        .setLabel('Prendre ce devis')
+        .setStyle(ButtonStyle.Primary),
+      new ButtonBuilder()
+        .setCustomId(`quote_price:${quoteId}`)
+        .setLabel('Modifier le prix')
+        .setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder()
+        .setCustomId(`quote_to_order:${quoteId}`)
+        .setLabel('Transformer en commande')
+        .setStyle(ButtonStyle.Success),
+      new ButtonBuilder()
+        .setCustomId(`quote_contact:${quoteId}`)
+        .setLabel('Contacter le client')
+        .setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder()
+        .setCustomId(`quote_close:${quoteId}`)
+        .setLabel('Fermer le devis')
+        .setStyle(ButtonStyle.Danger)
+    )
+  ];
+}
+
+function orderStaffRows(orderId) {
+  return [
+    new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`order_claim:${orderId}`)
+        .setLabel('Prendre la commande')
+        .setStyle(ButtonStyle.Primary),
+      new ButtonBuilder()
+        .setCustomId(`order_prev:${orderId}`)
+        .setLabel('Étape précédente')
+        .setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder()
+        .setCustomId(`order_next:${orderId}`)
+        .setLabel('Étape suivante')
+        .setStyle(ButtonStyle.Success),
+      new ButtonBuilder()
+        .setCustomId(`order_contact:${orderId}`)
+        .setLabel('Contacter le client')
+        .setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder()
+        .setCustomId(`order_close:${orderId}`)
+        .setLabel('Clôturer')
+        .setStyle(ButtonStyle.Danger)
+    ),
+    new ActionRowBuilder().addComponents(
+      new StringSelectMenuBuilder()
+        .setCustomId(`order_stage:${orderId}`)
+        .setPlaceholder('Choisir directement une étape')
+        .addOptions(
+          ORDER_STAGES.map((stage, index) => ({
+            label: stage,
+            value: String(index)
+          }))
+        )
+    )
+  ];
+}
+
+function orderProgress(stageIndex) {
+  const total = ORDER_STAGES.length;
+  const pct = Math.round(((stageIndex + 1) / total) * 100);
+  const blocks = 10;
+  const filled = Math.round((pct / 100) * blocks);
+  return `${'█'.repeat(filled)}${'░'.repeat(blocks - filled)} ${pct}%`;
+}
+
+function quoteEmbed(quote) {
+  return makeEmbed(
+    `💰 ${quote.id} — ${quote.projectName}`,
+    [
+      `**Client :** <@${quote.userId}>`,
+      `**Type :** ${quote.service}`,
+      `**Prix :** ${quote.price !== null ? `${quote.price} €` : 'À définir'}`,
+      `**Statut :** ${quote.status}`,
+      `**Responsable :** ${quote.claimedBy ? `<@${quote.claimedBy}>` : 'Non pris'}`,
+      '',
+      '**Description :**',
+      quote.description
+    ].join('\n'),
+    0xF1C40F
+  );
+}
+
+function orderEmbed(order) {
+  const stage = ORDER_STAGES[order.stageIndex] || ORDER_STAGES[0];
+
+  return makeEmbed(
+    `📦 ${order.id} — ${order.projectName}`,
+    [
+      `**Client :** <@${order.userId}>`,
+      `**Service :** ${order.service}`,
+      `**Devis lié :** ${order.quoteId || 'Aucun'}`,
+      `**Prix :** ${order.price !== null ? `${order.price} €` : 'Non défini'}`,
+      `**Paiement :** ${order.paymentStatus}`,
+      `**Étape :** ${stage}`,
+      `**Progression :** ${orderProgress(order.stageIndex)}`,
+      `**Responsable :** ${order.claimedBy ? `<@${order.claimedBy}>` : 'Non pris'}`,
+      `**Statut interne :** ${order.status}`
+    ].join('\n'),
+    0x3498DB
+  );
+}
+
+async function refreshQuoteMessage(guild, quote) {
+  if (!quote.channelId || !quote.messageId) return;
+
+  try {
+    const channel = await guild.channels.fetch(quote.channelId);
+    const message = await channel.messages.fetch(quote.messageId);
+    await message.edit({
+      embeds: [quoteEmbed(quote)],
+      components: quote.status === 'Fermé' ? [] : quoteStaffRows(quote.id)
+    });
+  } catch {}
+}
+
+async function refreshOrderMessage(guild, order) {
+  if (!order.channelId || !order.messageId) return;
+
+  try {
+    const channel = await guild.channels.fetch(order.channelId);
+    const message = await channel.messages.fetch(order.messageId);
+    await message.edit({
+      embeds: [orderEmbed(order)],
+      components: order.status === 'Clôturée' ? [] : orderStaffRows(order.id)
+    });
+  } catch {}
+}
+
+async function dmUser(userId, payload) {
+  try {
+    const user = await client.users.fetch(userId);
+    await user.send(payload);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function createQuote(guild, userId, projectName, service, description, price = null, sourceTicketId = null) {
+  const config = getGuildConfig(guild.id);
+  const ops = loadJson(OPS_FILE);
+  const quoteId = nextId('quotes', 'DEV');
+
+  const quote = {
+    id: quoteId,
+    guildId: guild.id,
+    userId,
+    projectName,
+    service,
+    description,
+    price,
+    status: 'En attente',
+    claimedBy: null,
+    sourceTicketId,
+    channelId: null,
+    messageId: null,
+    orderId: null,
+    createdAt: new Date().toISOString()
+  };
+
+  const channel = await createStaffPrivateChannel(
+    guild,
+    config,
+    'devis_prives',
+    `devis-${quoteId.toLowerCase()}`
   );
 
-  return {
-    success: true,
-    action: 'created',
-    channel
+  const message = await channel.send({
+    embeds: [quoteEmbed(quote)],
+    components: quoteStaffRows(quoteId)
+  });
+
+  quote.channelId = channel.id;
+  quote.messageId = message.id;
+
+  const latest = loadJson(OPS_FILE);
+  latest.quotes[quoteId] = quote;
+  saveJson(OPS_FILE, latest);
+
+  const summaryChannelId = config.channels.devis_commerciaux;
+  const summaryChannel = guild.channels.cache.get(summaryChannelId);
+
+  if (summaryChannel && summaryChannel.isTextBased()) {
+    await summaryChannel.send({
+      embeds: [
+        makeEmbed(
+          `📋 Nouveau devis ${quoteId}`,
+          `Client : <@${userId}>\nProjet : **${projectName}**\nService : **${service}**\nStatut : **En attente**`
+        )
+      ]
+    }).catch(() => {});
+  }
+
+  await dmUser(userId, {
+    embeds: [
+      makeEmbed(
+        `💰 Demande de devis reçue — ${quoteId}`,
+        `Nous avons bien reçu ta demande pour **${projectName}**.\n\nL’équipe va étudier ton projet. Tu recevras une mise à jour lorsque le prix sera défini.`,
+        0xF1C40F
+      )
+    ]
+  });
+
+  return quote;
+}
+
+async function createOrderFromQuote(guild, quote) {
+  const config = getGuildConfig(guild.id);
+  const orderId = nextId('orders', 'CMD');
+
+  const order = {
+    id: orderId,
+    guildId: guild.id,
+    userId: quote.userId,
+    quoteId: quote.id,
+    projectName: quote.projectName,
+    service: quote.service,
+    description: quote.description,
+    price: quote.price,
+    paymentStatus: 'En attente',
+    stageIndex: 0,
+    claimedBy: null,
+    status: 'Active',
+    channelId: null,
+    messageId: null,
+    createdAt: new Date().toISOString()
   };
+
+  const channel = await createStaffPrivateChannel(
+    guild,
+    config,
+    'commandes_privees',
+    `commande-${orderId.toLowerCase()}`
+  );
+
+  const message = await channel.send({
+    embeds: [orderEmbed(order)],
+    components: orderStaffRows(orderId)
+  });
+
+  order.channelId = channel.id;
+  order.messageId = message.id;
+
+  const ops = loadJson(OPS_FILE);
+  ops.orders[orderId] = order;
+
+  if (ops.quotes[quote.id]) {
+    ops.quotes[quote.id].status = 'Transformé en commande';
+    ops.quotes[quote.id].orderId = orderId;
+  }
+
+  saveJson(OPS_FILE, ops);
+
+  const summaryChannelId = config.channels.commandes_commerciales;
+  const summaryChannel = guild.channels.cache.get(summaryChannelId);
+
+  if (summaryChannel && summaryChannel.isTextBased()) {
+    await summaryChannel.send({
+      embeds: [
+        makeEmbed(
+          `📦 Nouvelle commande ${orderId}`,
+          `Client : <@${order.userId}>\nProjet : **${order.projectName}**\nDevis : **${order.quoteId}**\nÉtape : **${ORDER_STAGES[0]}**`
+        )
+      ]
+    }).catch(() => {});
+  }
+
+  await dmUser(order.userId, {
+    embeds: [
+      makeEmbed(
+        `📦 Commande créée — ${orderId}`,
+        `Ta commande pour **${order.projectName}** a été créée.\n\nTu peux suivre son avancement depuis le salon de suivi des commandes avec le bouton **Voir mes commandes**.`,
+        0x3498DB
+      )
+    ]
+  });
+
+  return order;
+}
+
+async function sendMyOrders(interaction) {
+  const ops = loadJson(OPS_FILE);
+
+  const orders = Object.values(ops.orders)
+    .filter(order =>
+      order.guildId === interaction.guild.id &&
+      order.userId === interaction.user.id
+    )
+    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+  if (!orders.length) {
+    return interaction.reply({
+      content: '📦 Tu n’as actuellement aucune commande enregistrée.',
+      flags: MessageFlags.Ephemeral
+    });
+  }
+
+  const description = orders
+    .slice(0, 10)
+    .map(order => {
+      const stage = ORDER_STAGES[order.stageIndex] || ORDER_STAGES[0];
+      return [
+        `**${order.id} — ${order.projectName}**`,
+        `Étape : ${stage}`,
+        `Progression : ${orderProgress(order.stageIndex)}`,
+        `Paiement : ${order.paymentStatus}`,
+        `Statut : ${order.status}`
+      ].join('\n');
+    })
+    .join('\n\n');
+
+  return interaction.reply({
+    embeds: [
+      makeEmbed(
+        '📦 Mes commandes',
+        description,
+        0x3498DB
+      )
+    ],
+    flags: MessageFlags.Ephemeral
+  });
 }
 
 const commands = [
@@ -996,7 +1471,11 @@ const commands = [
 
   new SlashCommandBuilder()
     .setName('setup')
-    .setDescription('Vérifie et réinstalle tous les panneaux configurés.')
+    .setDescription('Vérifie et réinstalle tous les panneaux configurés.'),
+
+  new SlashCommandBuilder()
+    .setName('suivi')
+    .setDescription('Affiche tes commandes privées.')
 ].map(command => command.toJSON());
 
 client.once(Events.ClientReady, async readyClient => {
@@ -1007,7 +1486,7 @@ client.once(Events.ClientReady, async readyClient => {
   console.log(`🌐 Serveurs : ${readyClient.guilds.cache.size}`);
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
-  ensureData();
+  ensureFiles();
 
   for (const guild of readyClient.guilds.cache.values()) {
     try {
@@ -1022,18 +1501,11 @@ client.once(Events.ClientReady, async readyClient => {
 client.on(Events.GuildMemberAdd, async member => {
   const config = getGuildConfig(member.guild.id);
 
-  const newRoleId = config.roles.nouveau;
-
-  if (newRoleId) {
-    await member.roles.add(newRoleId).catch(() => {});
+  if (config.roles.nouveau) {
+    await member.roles.add(config.roles.nouveau).catch(() => {});
   }
 
-  const welcomeChannelId = config.channels.bienvenue;
-
-  if (!welcomeChannelId) return;
-
-  const channel = member.guild.channels.cache.get(welcomeChannelId);
-
+  const channel = member.guild.channels.cache.get(config.channels.bienvenue);
   if (!channel || !channel.isTextBased()) return;
 
   const welcome = new EmbedBuilder()
@@ -1045,31 +1517,19 @@ client.on(Events.GuildMemberAdd, async member => {
       `Nous sommes heureux de t’accueillir parmi nous.\n\n` +
       `Pense à lire le règlement afin de profiter pleinement du serveur.`
     )
-    .setThumbnail(
-      member.user.displayAvatarURL({
-        size: 256
-      })
-    )
+    .setThumbnail(member.user.displayAvatarURL({ size: 256 }))
     .setAuthor({
       name: member.user.tag,
-      iconURL: member.user.displayAvatarURL({
-        size: 128
-      })
+      iconURL: member.user.displayAvatarURL({ size: 128 })
     })
     .setTimestamp();
 
-  await channel.send({
-    embeds: [welcome]
-  }).catch(() => {});
+  await channel.send({ embeds: [welcome] }).catch(() => {});
 });
 
 client.on(Events.GuildMemberRemove, async member => {
   const config = getGuildConfig(member.guild.id);
-  const channelId = config.channels.depart;
-
-  if (!channelId) return;
-
-  const channel = member.guild.channels.cache.get(channelId);
+  const channel = member.guild.channels.cache.get(config.channels.depart);
 
   if (!channel || !channel.isTextBased()) return;
 
@@ -1080,16 +1540,10 @@ client.on(Events.GuildMemberRemove, async member => {
       `**${member.user.tag}** vient de quitter **${member.guild.name}**.\n\n` +
       `Nous sommes maintenant **${member.guild.memberCount} membres**.`
     )
-    .setThumbnail(
-      member.user.displayAvatarURL({
-        size: 256
-      })
-    )
+    .setThumbnail(member.user.displayAvatarURL({ size: 256 }))
     .setTimestamp();
 
-  await channel.send({
-    embeds: [goodbye]
-  }).catch(() => {});
+  await channel.send({ embeds: [goodbye] }).catch(() => {});
 });
 
 client.on(Events.InteractionCreate, async interaction => {
@@ -1117,47 +1571,37 @@ client.on(Events.InteractionCreate, async interaction => {
               value: key
             }));
 
-      const results = source
-        .filter(item =>
-          item.name.toLowerCase().includes(focused)
-        )
-        .slice(0, 25);
-
-      return interaction.respond(results);
+      return interaction.respond(
+        source
+          .filter(item => item.name.toLowerCase().includes(focused))
+          .slice(0, 25)
+      );
     }
 
     if (interaction.isChatInputCommand()) {
+      if (interaction.commandName === 'suivi') {
+        return sendMyOrders(interaction);
+      }
+
       if (interaction.commandName === 'config') {
         if (!isAdmin(interaction.member)) {
           return interaction.reply({
-            content:
-              '❌ Cette commande est réservée aux administrateurs.',
-            flags:
-              MessageFlags.Ephemeral
+            content: '❌ Cette commande est réservée aux administrateurs.',
+            flags: MessageFlags.Ephemeral
           });
         }
 
-        const sub =
-          interaction.options.getSubcommand();
+        const sub = interaction.options.getSubcommand();
 
         if (sub === 'salon') {
-          const rawType =
-            interaction.options.getString('type');
+          const rawType = interaction.options.getString('type');
+          const target = interaction.options.getChannel('cible');
+          const [sectionType, key] = rawType.split(':');
 
-          const target =
-            interaction.options.getChannel('cible');
-
-          const [sectionType, key] =
-            rawType.split(':');
-
-          if (
-            !['channel', 'category'].includes(sectionType)
-          ) {
+          if (!['channel', 'category'].includes(sectionType)) {
             return interaction.reply({
-              content:
-                '❌ Type de configuration invalide.',
-              flags:
-                MessageFlags.Ephemeral
+              content: '❌ Type de configuration invalide.',
+              flags: MessageFlags.Ephemeral
             });
           }
 
@@ -1166,10 +1610,8 @@ client.on(Events.InteractionCreate, async interaction => {
             target.type !== ChannelType.GuildCategory
           ) {
             return interaction.reply({
-              content:
-                '❌ Tu dois sélectionner une catégorie Discord.',
-              flags:
-                MessageFlags.Ephemeral
+              content: '❌ Tu dois sélectionner une catégorie Discord.',
+              flags: MessageFlags.Ephemeral
             });
           }
 
@@ -1178,54 +1620,40 @@ client.on(Events.InteractionCreate, async interaction => {
             target.type === ChannelType.GuildCategory
           ) {
             return interaction.reply({
-              content:
-                '❌ Tu dois sélectionner un salon, pas une catégorie.',
-              flags:
-                MessageFlags.Ephemeral
+              content: '❌ Tu dois sélectionner un salon, pas une catégorie.',
+              flags: MessageFlags.Ephemeral
             });
           }
 
           updateGuildConfig(
             interaction.guild.id,
-            sectionType === 'channel'
-              ? 'channels'
-              : 'categories',
+            sectionType === 'channel' ? 'channels' : 'categories',
             key,
             target.id
           );
 
-          if (sectionType === 'channel') {
-            const result =
-              await installOrUpdatePanel(
-                interaction.guild,
-                key
-              );
+          if (sectionType === 'channel' && PANEL_DEFINITIONS[key]) {
+            const result = await installOrUpdatePanel(interaction.guild, key);
 
-            if (result.success) {
-              return interaction.reply({
-                content:
-                  `✅ **${key}** a été configuré sur ${target}.\n` +
-                  `Le panneau a été ${result.action === 'created' ? 'installé immédiatement' : 'mis à jour immédiatement'}.`,
-                flags:
-                  MessageFlags.Ephemeral
-              });
-            }
+            return interaction.reply({
+              content:
+                `✅ **${key}** configuré sur ${target}.\n` +
+                (result.success
+                  ? `Le panneau a été ${result.action === 'created' ? 'installé immédiatement' : 'mis à jour immédiatement'}.`
+                  : 'La configuration a été enregistrée.'),
+              flags: MessageFlags.Ephemeral
+            });
           }
 
           return interaction.reply({
-            content:
-              `✅ Configuration enregistrée : **${key}** → ${target}`,
-            flags:
-              MessageFlags.Ephemeral
+            content: `✅ Configuration enregistrée : **${key}** → ${target}`,
+            flags: MessageFlags.Ephemeral
           });
         }
 
         if (sub === 'role') {
-          const key =
-            interaction.options.getString('type');
-
-          const role =
-            interaction.options.getRole('role');
+          const key = interaction.options.getString('type');
+          const role = interaction.options.getRole('role');
 
           updateGuildConfig(
             interaction.guild.id,
@@ -1235,64 +1663,42 @@ client.on(Events.InteractionCreate, async interaction => {
           );
 
           return interaction.reply({
-            content:
-              `✅ Rôle configuré : **${key}** → ${role}`,
-            flags:
-              MessageFlags.Ephemeral
+            content: `✅ Rôle configuré : **${key}** → ${role}`,
+            flags: MessageFlags.Ephemeral
           });
         }
 
         if (sub === 'voir') {
-          const config =
-            getGuildConfig(
-              interaction.guild.id
-            );
+          const config = getGuildConfig(interaction.guild.id);
 
-          const channelLines =
-            Object.entries(config.channels)
-              .map(
-                ([key, id]) =>
-                  `• ${key} → <#${id}>`
-              );
+          const channelLines = Object.entries(config.channels)
+            .map(([key, id]) => `• ${key} → <#${id}>`);
 
-          const categoryLines =
-            Object.entries(config.categories)
-              .map(
-                ([key, id]) =>
-                  `• ${key} → <#${id}>`
-              );
+          const categoryLines = Object.entries(config.categories)
+            .map(([key, id]) => `• ${key} → <#${id}>`);
 
-          const roleLines =
-            Object.entries(config.roles)
-              .map(
-                ([key, id]) =>
-                  `• ${key} → <@&${id}>`
-              );
+          const roleLines = Object.entries(config.roles)
+            .map(([key, id]) => `• ${key} → <@&${id}>`);
+
+          const description = [
+            '**Salons**',
+            channelLines.length ? channelLines.join('\n') : 'Aucun salon configuré.',
+            '',
+            '**Catégories**',
+            categoryLines.length ? categoryLines.join('\n') : 'Aucune catégorie configurée.',
+            '',
+            '**Rôles**',
+            roleLines.length ? roleLines.join('\n') : 'Aucun rôle configuré.'
+          ].join('\n').slice(0, 3900);
 
           return interaction.reply({
             embeds: [
               makeEmbed(
                 '⚙️ Configuration Creaty Bot',
-                [
-                  '**Salons**',
-                  channelLines.length
-                    ? channelLines.join('\n')
-                    : 'Aucun salon configuré.',
-                  '',
-                  '**Catégories**',
-                  categoryLines.length
-                    ? categoryLines.join('\n')
-                    : 'Aucune catégorie configurée.',
-                  '',
-                  '**Rôles**',
-                  roleLines.length
-                    ? roleLines.join('\n')
-                    : 'Aucun rôle configuré.'
-                ].join('\n')
+                description
               )
             ],
-            flags:
-              MessageFlags.Ephemeral
+            flags: MessageFlags.Ephemeral
           });
         }
       }
@@ -1300,347 +1706,1170 @@ client.on(Events.InteractionCreate, async interaction => {
       if (interaction.commandName === 'setup') {
         if (!isAdmin(interaction.member)) {
           return interaction.reply({
-            content:
-              '❌ Cette commande est réservée aux administrateurs.',
-            flags:
-              MessageFlags.Ephemeral
+            content: '❌ Cette commande est réservée aux administrateurs.',
+            flags: MessageFlags.Ephemeral
           });
         }
 
         await interaction.deferReply({
-          flags:
-            MessageFlags.Ephemeral
+          flags: MessageFlags.Ephemeral
         });
 
-        const config =
-          getGuildConfig(
-            interaction.guild.id
-          );
-
-        const configuredKeys =
-          Object.keys(config.channels);
-
+        const config = getGuildConfig(interaction.guild.id);
         let success = 0;
         let failed = 0;
 
-        for (
-          const key of configuredKeys
-        ) {
-          if (!PANEL_DEFINITIONS[key]) {
-            continue;
-          }
+        for (const key of Object.keys(config.channels)) {
+          if (!PANEL_DEFINITIONS[key]) continue;
 
-          const result =
-            await installOrUpdatePanel(
-              interaction.guild,
-              key
-            );
+          const result = await installOrUpdatePanel(interaction.guild, key);
 
-          if (result.success) {
-            success++;
-          } else {
-            failed++;
-          }
+          if (result.success) success++;
+          else failed++;
         }
 
         return interaction.editReply(
           `✅ Vérification terminée.\n` +
           `• Panneaux installés ou mis à jour : **${success}**\n` +
-          `• Échecs : **${failed}**`
+          `• Échecs : **${failed}**\n\n` +
+          `Les configurations existantes ont été conservées.`
         );
       }
     }
 
-    if (
-      interaction.isButton() &&
-      interaction.customId === 'accept_rules'
-    ) {
-      const config =
-        getGuildConfig(
-          interaction.guild.id
-        );
+    if (interaction.isButton()) {
+      if (interaction.customId === 'accept_rules') {
+        const config = getGuildConfig(interaction.guild.id);
 
-      const memberRoleId =
-        config.roles.membre;
+        if (!config.roles.membre) {
+          return interaction.reply({
+            content: '❌ Le rôle Membre n’a pas encore été configuré.',
+            flags: MessageFlags.Ephemeral
+          });
+        }
 
-      const newRoleId =
-        config.roles.nouveau;
+        await interaction.member.roles.add(config.roles.membre).catch(() => {});
 
-      if (!memberRoleId) {
+        if (config.roles.nouveau) {
+          await interaction.member.roles.remove(config.roles.nouveau).catch(() => {});
+        }
+
         return interaction.reply({
-          content:
-            '❌ Le rôle Membre n’a pas encore été configuré.',
-          flags:
-            MessageFlags.Ephemeral
+          content: '✅ Tu as accepté le règlement. Bienvenue sur Creaty Bot !',
+          flags: MessageFlags.Ephemeral
         });
       }
 
-      await interaction.member.roles
-        .add(memberRoleId)
-        .catch(() => {});
-
-      if (newRoleId) {
-        await interaction.member.roles
-          .remove(newRoleId)
-          .catch(() => {});
-      }
-
-      return interaction.reply({
-        content:
-          '✅ Tu as accepté le règlement. Bienvenue sur Creaty Bot !',
-        flags:
-          MessageFlags.Ephemeral
-      });
-    }
-
-    if (
-      interaction.isButton() &&
-      interaction.customId === 'new_suggestion'
-    ) {
-      const modal =
-        new ModalBuilder()
+      if (interaction.customId === 'new_suggestion') {
+        const modal = new ModalBuilder()
           .setCustomId('suggestion_modal')
           .setTitle('Nouvelle suggestion');
 
-      const input =
-        new TextInputBuilder()
-          .setCustomId('suggestion_text')
-          .setLabel('Ta suggestion')
-          .setStyle(
-            TextInputStyle.Paragraph
+        modal.addComponents(
+          new ActionRowBuilder().addComponents(
+            new TextInputBuilder()
+              .setCustomId('suggestion_text')
+              .setLabel('Ta suggestion')
+              .setStyle(TextInputStyle.Paragraph)
+              .setRequired(true)
+              .setMaxLength(1000)
           )
-          .setRequired(true)
-          .setMaxLength(1000);
-
-      modal.addComponents(
-        new ActionRowBuilder()
-          .addComponents(input)
-      );
-
-      return interaction.showModal(modal);
-    }
-
-    if (
-      interaction.isModalSubmit() &&
-      interaction.customId === 'suggestion_modal'
-    ) {
-      const config =
-        getGuildConfig(
-          interaction.guild.id
         );
 
-      const channelId =
-        config.channels.suggestion;
+        return interaction.showModal(modal);
+      }
 
-      const channel =
-        interaction.guild.channels.cache.get(
-          channelId
+      if (interaction.customId === 'quote_request') {
+        const modal = new ModalBuilder()
+          .setCustomId('quote_request_modal')
+          .setTitle('Demande de devis');
+
+        modal.addComponents(
+          new ActionRowBuilder().addComponents(
+            new TextInputBuilder()
+              .setCustomId('project_name')
+              .setLabel('Nom du bot / projet')
+              .setStyle(TextInputStyle.Short)
+              .setRequired(true)
+              .setMaxLength(100)
+          ),
+          new ActionRowBuilder().addComponents(
+            new TextInputBuilder()
+              .setCustomId('service')
+              .setLabel('Service demandé')
+              .setStyle(TextInputStyle.Short)
+              .setRequired(true)
+              .setMaxLength(100)
+          ),
+          new ActionRowBuilder().addComponents(
+            new TextInputBuilder()
+              .setCustomId('description')
+              .setLabel('Décris précisément ton projet')
+              .setStyle(TextInputStyle.Paragraph)
+              .setRequired(true)
+              .setMaxLength(1500)
+          )
         );
 
-      const text =
-        interaction.fields
-          .getTextInputValue(
-            'suggestion_text'
-          );
+        return interaction.showModal(modal);
+      }
 
-      if (
-        channel &&
-        channel.isTextBased()
-      ) {
-        await channel.send({
+      if (interaction.customId === 'my_orders') {
+        return sendMyOrders(interaction);
+      }
+
+      if (interaction.customId === 'declare_payment') {
+        const modal = new ModalBuilder()
+          .setCustomId('declare_payment_modal')
+          .setTitle('Déclarer un paiement');
+
+        modal.addComponents(
+          new ActionRowBuilder().addComponents(
+            new TextInputBuilder()
+              .setCustomId('order_id')
+              .setLabel('Numéro de commande (CMD-0001)')
+              .setStyle(TextInputStyle.Short)
+              .setRequired(true)
+          ),
+          new ActionRowBuilder().addComponents(
+            new TextInputBuilder()
+              .setCustomId('proof')
+              .setLabel('Référence ou preuve du paiement')
+              .setStyle(TextInputStyle.Paragraph)
+              .setRequired(true)
+              .setMaxLength(1000)
+          )
+        );
+
+        return interaction.showModal(modal);
+      }
+
+      if (interaction.customId === 'ticket_order') {
+        return interaction.reply({
+          content: '📝 Pour commander, commence par demander un devis. Clique sur **Demander un devis**.',
+          flags: MessageFlags.Ephemeral
+        });
+      }
+
+      if (interaction.customId === 'ticket_support') {
+        return interaction.reply({
+          content: '❓ Utilise le panneau Tickets pour ouvrir un ticket de type Support.',
+          flags: MessageFlags.Ephemeral
+        });
+      }
+
+      if (interaction.customId.startsWith('ticket_claim:')) {
+        const ticketId = interaction.customId.split(':')[1];
+        const ops = loadJson(OPS_FILE);
+        const ticket = ops.tickets[ticketId];
+
+        if (!ticket) {
+          return interaction.reply({
+            content: '❌ Ticket introuvable.',
+            flags: MessageFlags.Ephemeral
+          });
+        }
+
+        const config = getGuildConfig(ticket.guildId);
+
+        if (!hasStaffAccess(interaction.member, config)) {
+          return interaction.reply({
+            content: '❌ Réservé au personnel.',
+            flags: MessageFlags.Ephemeral
+          });
+        }
+
+        ticket.claimedBy = interaction.user.id;
+        ops.tickets[ticketId] = ticket;
+        saveJson(OPS_FILE, ops);
+
+        return interaction.reply({
+          content: `👤 Ticket pris en charge par ${interaction.user}.`
+        });
+      }
+
+      if (interaction.customId.startsWith('ticket_quote:')) {
+        const ticketId = interaction.customId.split(':')[1];
+        const ops = loadJson(OPS_FILE);
+        const ticket = ops.tickets[ticketId];
+
+        if (!ticket) {
+          return interaction.reply({
+            content: '❌ Ticket introuvable.',
+            flags: MessageFlags.Ephemeral
+          });
+        }
+
+        const config = getGuildConfig(ticket.guildId);
+
+        if (!hasStaffAccess(interaction.member, config)) {
+          return interaction.reply({
+            content: '❌ Réservé au personnel.',
+            flags: MessageFlags.Ephemeral
+          });
+        }
+
+        const modal = new ModalBuilder()
+          .setCustomId(`ticket_quote_modal:${ticketId}`)
+          .setTitle('Créer un devis');
+
+        modal.addComponents(
+          new ActionRowBuilder().addComponents(
+            new TextInputBuilder()
+              .setCustomId('project_name')
+              .setLabel('Nom du bot / projet')
+              .setStyle(TextInputStyle.Short)
+              .setRequired(true)
+          ),
+          new ActionRowBuilder().addComponents(
+            new TextInputBuilder()
+              .setCustomId('service')
+              .setLabel('Service')
+              .setStyle(TextInputStyle.Short)
+              .setRequired(true)
+          ),
+          new ActionRowBuilder().addComponents(
+            new TextInputBuilder()
+              .setCustomId('description')
+              .setLabel('Description')
+              .setStyle(TextInputStyle.Paragraph)
+              .setRequired(true)
+          ),
+          new ActionRowBuilder().addComponents(
+            new TextInputBuilder()
+              .setCustomId('price')
+              .setLabel('Prix en euros')
+              .setStyle(TextInputStyle.Short)
+              .setRequired(true)
+          )
+        );
+
+        return interaction.showModal(modal);
+      }
+
+      if (interaction.customId.startsWith('ticket_close:')) {
+        const ticketId = interaction.customId.split(':')[1];
+        const ops = loadJson(OPS_FILE);
+        const ticket = ops.tickets[ticketId];
+
+        if (!ticket) {
+          return interaction.reply({
+            content: '❌ Ticket introuvable.',
+            flags: MessageFlags.Ephemeral
+          });
+        }
+
+        if (
+          interaction.user.id !== ticket.userId &&
+          !hasStaffAccess(interaction.member, getGuildConfig(ticket.guildId))
+        ) {
+          return interaction.reply({
+            content: '❌ Tu ne peux pas fermer ce ticket.',
+            flags: MessageFlags.Ephemeral
+          });
+        }
+
+        ticket.status = 'Fermé';
+        ops.tickets[ticketId] = ticket;
+        saveJson(OPS_FILE, ops);
+
+        await interaction.channel.permissionOverwrites
+          .edit(ticket.userId, { SendMessages: false })
+          .catch(() => {});
+
+        return interaction.update({
           embeds: [
             makeEmbed(
-              `💡 Suggestion de ${interaction.user.username}`,
-              text,
+              `🔒 ${ticketId} fermé`,
+              `Le ticket a été fermé par ${interaction.user}.\n\nAucune donnée n’a été supprimée.`,
+              0x95A5A6
+            )
+          ],
+          components: []
+        });
+      }
+
+      if (interaction.customId.startsWith('quote_claim:')) {
+        const quoteId = interaction.customId.split(':')[1];
+        const ops = loadJson(OPS_FILE);
+        const quote = ops.quotes[quoteId];
+
+        if (!quote) {
+          return interaction.reply({
+            content: '❌ Devis introuvable.',
+            flags: MessageFlags.Ephemeral
+          });
+        }
+
+        const config = getGuildConfig(quote.guildId);
+
+        if (!hasStaffAccess(interaction.member, config)) {
+          return interaction.reply({
+            content: '❌ Réservé au personnel.',
+            flags: MessageFlags.Ephemeral
+          });
+        }
+
+        quote.claimedBy = interaction.user.id;
+        ops.quotes[quoteId] = quote;
+        saveJson(OPS_FILE, ops);
+
+        await refreshQuoteMessage(interaction.guild, quote);
+
+        return interaction.reply({
+          content: `👤 ${interaction.user} prend maintenant en charge le devis **${quoteId}**.`
+        });
+      }
+
+      if (interaction.customId.startsWith('quote_price:')) {
+        const quoteId = interaction.customId.split(':')[1];
+        const ops = loadJson(OPS_FILE);
+        const quote = ops.quotes[quoteId];
+
+        if (!quote) {
+          return interaction.reply({
+            content: '❌ Devis introuvable.',
+            flags: MessageFlags.Ephemeral
+          });
+        }
+
+        if (!hasStaffAccess(interaction.member, getGuildConfig(quote.guildId))) {
+          return interaction.reply({
+            content: '❌ Réservé au personnel.',
+            flags: MessageFlags.Ephemeral
+          });
+        }
+
+        const modal = new ModalBuilder()
+          .setCustomId(`quote_price_modal:${quoteId}`)
+          .setTitle(`Prix ${quoteId}`);
+
+        modal.addComponents(
+          new ActionRowBuilder().addComponents(
+            new TextInputBuilder()
+              .setCustomId('price')
+              .setLabel('Nouveau prix en euros')
+              .setStyle(TextInputStyle.Short)
+              .setRequired(true)
+          )
+        );
+
+        return interaction.showModal(modal);
+      }
+
+      if (interaction.customId.startsWith('quote_to_order:')) {
+        const quoteId = interaction.customId.split(':')[1];
+        const ops = loadJson(OPS_FILE);
+        const quote = ops.quotes[quoteId];
+
+        if (!quote) {
+          return interaction.reply({
+            content: '❌ Devis introuvable.',
+            flags: MessageFlags.Ephemeral
+          });
+        }
+
+        if (!hasStaffAccess(interaction.member, getGuildConfig(quote.guildId))) {
+          return interaction.reply({
+            content: '❌ Réservé au personnel.',
+            flags: MessageFlags.Ephemeral
+          });
+        }
+
+        if (quote.orderId) {
+          return interaction.reply({
+            content: `❌ Ce devis est déjà lié à la commande **${quote.orderId}**.`,
+            flags: MessageFlags.Ephemeral
+          });
+        }
+
+        const order = await createOrderFromQuote(interaction.guild, quote);
+
+        const latest = loadJson(OPS_FILE);
+        if (latest.quotes[quoteId]) {
+          await refreshQuoteMessage(interaction.guild, latest.quotes[quoteId]);
+        }
+
+        return interaction.reply({
+          content: `✅ Le devis **${quoteId}** a été transformé en commande **${order.id}**.`
+        });
+      }
+
+      if (interaction.customId.startsWith('quote_contact:')) {
+        const quoteId = interaction.customId.split(':')[1];
+        const ops = loadJson(OPS_FILE);
+        const quote = ops.quotes[quoteId];
+
+        if (!quote) {
+          return interaction.reply({
+            content: '❌ Devis introuvable.',
+            flags: MessageFlags.Ephemeral
+          });
+        }
+
+        if (!hasStaffAccess(interaction.member, getGuildConfig(quote.guildId))) {
+          return interaction.reply({
+            content: '❌ Réservé au personnel.',
+            flags: MessageFlags.Ephemeral
+          });
+        }
+
+        const modal = new ModalBuilder()
+          .setCustomId(`contact_quote_modal:${quoteId}`)
+          .setTitle('Contacter le client');
+
+        modal.addComponents(
+          new ActionRowBuilder().addComponents(
+            new TextInputBuilder()
+              .setCustomId('message')
+              .setLabel('Message à envoyer en MP')
+              .setStyle(TextInputStyle.Paragraph)
+              .setRequired(true)
+              .setMaxLength(1500)
+          )
+        );
+
+        return interaction.showModal(modal);
+      }
+
+      if (interaction.customId.startsWith('quote_close:')) {
+        const quoteId = interaction.customId.split(':')[1];
+        const ops = loadJson(OPS_FILE);
+        const quote = ops.quotes[quoteId];
+
+        if (!quote) {
+          return interaction.reply({
+            content: '❌ Devis introuvable.',
+            flags: MessageFlags.Ephemeral
+          });
+        }
+
+        if (!hasStaffAccess(interaction.member, getGuildConfig(quote.guildId))) {
+          return interaction.reply({
+            content: '❌ Réservé au personnel.',
+            flags: MessageFlags.Ephemeral
+          });
+        }
+
+        quote.status = 'Fermé';
+        ops.quotes[quoteId] = quote;
+        saveJson(OPS_FILE, ops);
+
+        await refreshQuoteMessage(interaction.guild, quote);
+
+        return interaction.reply({
+          content: `🔒 Le devis **${quoteId}** est fermé. Aucune donnée n’a été supprimée.`
+        });
+      }
+
+      if (interaction.customId.startsWith('order_claim:')) {
+        const orderId = interaction.customId.split(':')[1];
+        const ops = loadJson(OPS_FILE);
+        const order = ops.orders[orderId];
+
+        if (!order) {
+          return interaction.reply({
+            content: '❌ Commande introuvable.',
+            flags: MessageFlags.Ephemeral
+          });
+        }
+
+        if (!hasStaffAccess(interaction.member, getGuildConfig(order.guildId))) {
+          return interaction.reply({
+            content: '❌ Réservé au personnel.',
+            flags: MessageFlags.Ephemeral
+          });
+        }
+
+        order.claimedBy = interaction.user.id;
+        ops.orders[orderId] = order;
+        saveJson(OPS_FILE, ops);
+
+        await refreshOrderMessage(interaction.guild, order);
+
+        return interaction.reply({
+          content: `👤 ${interaction.user} prend maintenant en charge la commande **${orderId}**.`
+        });
+      }
+
+      if (
+        interaction.customId.startsWith('order_next:') ||
+        interaction.customId.startsWith('order_prev:')
+      ) {
+        const [action, orderId] = interaction.customId.split(':');
+        const ops = loadJson(OPS_FILE);
+        const order = ops.orders[orderId];
+
+        if (!order) {
+          return interaction.reply({
+            content: '❌ Commande introuvable.',
+            flags: MessageFlags.Ephemeral
+          });
+        }
+
+        if (!hasStaffAccess(interaction.member, getGuildConfig(order.guildId))) {
+          return interaction.reply({
+            content: '❌ Réservé au personnel.',
+            flags: MessageFlags.Ephemeral
+          });
+        }
+
+        if (action === 'order_next') {
+          order.stageIndex = Math.min(
+            ORDER_STAGES.length - 1,
+            order.stageIndex + 1
+          );
+        } else {
+          order.stageIndex = Math.max(0, order.stageIndex - 1);
+        }
+
+        ops.orders[orderId] = order;
+        saveJson(OPS_FILE, ops);
+
+        await refreshOrderMessage(interaction.guild, order);
+
+        await dmUser(order.userId, {
+          embeds: [
+            makeEmbed(
+              `📦 Mise à jour de ta commande ${orderId}`,
+              `Projet : **${order.projectName}**\nNouvelle étape : **${ORDER_STAGES[order.stageIndex]}**\nProgression : ${orderProgress(order.stageIndex)}`,
+              0x3498DB
+            )
+          ]
+        });
+
+        return interaction.reply({
+          content: `✅ Étape mise à jour : **${ORDER_STAGES[order.stageIndex]}**.`
+        });
+      }
+
+      if (interaction.customId.startsWith('order_contact:')) {
+        const orderId = interaction.customId.split(':')[1];
+        const ops = loadJson(OPS_FILE);
+        const order = ops.orders[orderId];
+
+        if (!order) {
+          return interaction.reply({
+            content: '❌ Commande introuvable.',
+            flags: MessageFlags.Ephemeral
+          });
+        }
+
+        if (!hasStaffAccess(interaction.member, getGuildConfig(order.guildId))) {
+          return interaction.reply({
+            content: '❌ Réservé au personnel.',
+            flags: MessageFlags.Ephemeral
+          });
+        }
+
+        const modal = new ModalBuilder()
+          .setCustomId(`contact_order_modal:${orderId}`)
+          .setTitle('Contacter le client');
+
+        modal.addComponents(
+          new ActionRowBuilder().addComponents(
+            new TextInputBuilder()
+              .setCustomId('message')
+              .setLabel('Message à envoyer en MP')
+              .setStyle(TextInputStyle.Paragraph)
+              .setRequired(true)
+              .setMaxLength(1500)
+          )
+        );
+
+        return interaction.showModal(modal);
+      }
+
+      if (interaction.customId.startsWith('order_close:')) {
+        const orderId = interaction.customId.split(':')[1];
+        const ops = loadJson(OPS_FILE);
+        const order = ops.orders[orderId];
+
+        if (!order) {
+          return interaction.reply({
+            content: '❌ Commande introuvable.',
+            flags: MessageFlags.Ephemeral
+          });
+        }
+
+        if (!hasStaffAccess(interaction.member, getGuildConfig(order.guildId))) {
+          return interaction.reply({
+            content: '❌ Réservé au personnel.',
+            flags: MessageFlags.Ephemeral
+          });
+        }
+
+        order.status = 'Clôturée';
+        ops.orders[orderId] = order;
+        saveJson(OPS_FILE, ops);
+
+        await refreshOrderMessage(interaction.guild, order);
+
+        return interaction.reply({
+          content: `🔒 Commande **${orderId}** clôturée. Aucune donnée n’a été supprimée.`
+        });
+      }
+
+      if (interaction.customId.startsWith('payment_accept:')) {
+        const paymentId = interaction.customId.split(':')[1];
+        const ops = loadJson(OPS_FILE);
+        const payment = ops.payments[paymentId];
+
+        if (!payment) {
+          return interaction.reply({
+            content: '❌ Paiement introuvable.',
+            flags: MessageFlags.Ephemeral
+          });
+        }
+
+        if (!hasStaffAccess(interaction.member, getGuildConfig(payment.guildId))) {
+          return interaction.reply({
+            content: '❌ Réservé au personnel.',
+            flags: MessageFlags.Ephemeral
+          });
+        }
+
+        payment.status = 'Validé';
+
+        if (ops.orders[payment.orderId]) {
+          ops.orders[payment.orderId].paymentStatus = 'Payé';
+        }
+
+        saveJson(OPS_FILE, ops);
+
+        const order = ops.orders[payment.orderId];
+
+        if (order) {
+          const guild = interaction.guild;
+          const config = getGuildConfig(guild.id);
+          const member = await guild.members.fetch(order.userId).catch(() => null);
+
+          if (member && config.roles.client) {
+            await member.roles.add(config.roles.client).catch(() => {});
+          }
+
+          if (member && config.roles.prospect) {
+            await member.roles.remove(config.roles.prospect).catch(() => {});
+          }
+
+          await refreshOrderMessage(guild, order);
+
+          await dmUser(order.userId, {
+            embeds: [
+              makeEmbed(
+                `✅ Paiement validé — ${payment.orderId}`,
+                `Ton paiement a été validé. La commande **${payment.orderId}** peut maintenant avancer.`,
+                0x57F287
+              )
+            ]
+          });
+        }
+
+        return interaction.update({
+          embeds: [
+            makeEmbed(
+              `✅ Paiement ${paymentId} validé`,
+              `Commande : **${payment.orderId}**\nClient : <@${payment.userId}>`,
+              0x57F287
+            )
+          ],
+          components: []
+        });
+      }
+
+      if (interaction.customId.startsWith('payment_refuse:')) {
+        const paymentId = interaction.customId.split(':')[1];
+        const ops = loadJson(OPS_FILE);
+        const payment = ops.payments[paymentId];
+
+        if (!payment) {
+          return interaction.reply({
+            content: '❌ Paiement introuvable.',
+            flags: MessageFlags.Ephemeral
+          });
+        }
+
+        if (!hasStaffAccess(interaction.member, getGuildConfig(payment.guildId))) {
+          return interaction.reply({
+            content: '❌ Réservé au personnel.',
+            flags: MessageFlags.Ephemeral
+          });
+        }
+
+        payment.status = 'Refusé';
+        saveJson(OPS_FILE, ops);
+
+        await dmUser(payment.userId, {
+          embeds: [
+            makeEmbed(
+              `❌ Paiement refusé — ${payment.orderId}`,
+              'La déclaration de paiement n’a pas été validée. Contacte le support si nécessaire.',
+              0xED4245
+            )
+          ]
+        });
+
+        return interaction.update({
+          embeds: [
+            makeEmbed(
+              `❌ Paiement ${paymentId} refusé`,
+              `Commande : **${payment.orderId}**`,
+              0xED4245
+            )
+          ],
+          components: []
+        });
+      }
+    }
+
+    if (interaction.isStringSelectMenu()) {
+      if (interaction.customId === 'ticket_type') {
+        const config = getGuildConfig(interaction.guild.id);
+        const categoryId =
+          config.categories.tickets ||
+          config.categories.support;
+
+        if (!categoryId) {
+          return interaction.reply({
+            content:
+              '❌ Aucune catégorie Tickets ou Support n’a encore été configurée.',
+            flags: MessageFlags.Ephemeral
+          });
+        }
+
+        const type = interaction.values[0];
+        const ticketId = nextId('tickets', 'TICKET');
+
+        const permissions = [
+          {
+            id: interaction.guild.roles.everyone.id,
+            deny: [PermissionFlagsBits.ViewChannel]
+          },
+          {
+            id: interaction.user.id,
+            allow: [
+              PermissionFlagsBits.ViewChannel,
+              PermissionFlagsBits.SendMessages,
+              PermissionFlagsBits.ReadMessageHistory,
+              PermissionFlagsBits.AttachFiles
+            ]
+          }
+        ];
+
+        const staffRoleIds = [
+          config.roles.staff,
+          config.roles.moderateur,
+          config.roles.administrateur,
+          config.roles.directeur,
+          config.roles.cofondateur,
+          config.roles.fondateur
+        ].filter(Boolean);
+
+        for (const roleId of [...new Set(staffRoleIds)]) {
+          permissions.push({
+            id: roleId,
+            allow: [
+              PermissionFlagsBits.ViewChannel,
+              PermissionFlagsBits.SendMessages,
+              PermissionFlagsBits.ReadMessageHistory,
+              PermissionFlagsBits.AttachFiles
+            ]
+          });
+        }
+
+        const ticketChannel = await interaction.guild.channels.create({
+          name: `${type}-${interaction.user.username}`
+            .toLowerCase()
+            .replace(/[^a-z0-9-]/g, '')
+            .slice(0, 90),
+          type: ChannelType.GuildText,
+          parent: categoryId,
+          permissionOverwrites: permissions
+        });
+
+        const ticket = {
+          id: ticketId,
+          guildId: interaction.guild.id,
+          userId: interaction.user.id,
+          type,
+          status: 'Ouvert',
+          claimedBy: null,
+          channelId: ticketChannel.id,
+          createdAt: new Date().toISOString()
+        };
+
+        const ops = loadJson(OPS_FILE);
+        ops.tickets[ticketId] = ticket;
+        saveJson(OPS_FILE, ops);
+
+        await ticketChannel.send({
+          content: `${interaction.user}`,
+          embeds: [
+            makeEmbed(
+              `🎫 ${ticketId} — ${type}`,
+              [
+                `**Client :** ${interaction.user}`,
+                `**Type :** ${type}`,
+                `**Statut :** Ouvert`,
+                '',
+                'Explique ta demande le plus précisément possible.',
+                '',
+                '**Panneau personnel**',
+                'Les boutons ci-dessous sont réservés au personnel pour prendre en charge et gérer le ticket.'
+              ].join('\n')
+            )
+          ],
+          components: ticketStaffRows(ticketId)
+        });
+
+        return interaction.reply({
+          content: `✅ Ton ticket a été créé : ${ticketChannel}`,
+          flags: MessageFlags.Ephemeral
+        });
+      }
+
+      if (interaction.customId.startsWith('order_stage:')) {
+        const orderId = interaction.customId.split(':')[1];
+        const ops = loadJson(OPS_FILE);
+        const order = ops.orders[orderId];
+
+        if (!order) {
+          return interaction.reply({
+            content: '❌ Commande introuvable.',
+            flags: MessageFlags.Ephemeral
+          });
+        }
+
+        if (!hasStaffAccess(interaction.member, getGuildConfig(order.guildId))) {
+          return interaction.reply({
+            content: '❌ Réservé au personnel.',
+            flags: MessageFlags.Ephemeral
+          });
+        }
+
+        order.stageIndex = Number(interaction.values[0]);
+        ops.orders[orderId] = order;
+        saveJson(OPS_FILE, ops);
+
+        await refreshOrderMessage(interaction.guild, order);
+
+        await dmUser(order.userId, {
+          embeds: [
+            makeEmbed(
+              `📦 Mise à jour de ta commande ${orderId}`,
+              `Projet : **${order.projectName}**\nNouvelle étape : **${ORDER_STAGES[order.stageIndex]}**\nProgression : ${orderProgress(order.stageIndex)}`,
+              0x3498DB
+            )
+          ]
+        });
+
+        return interaction.reply({
+          content: `✅ Étape définie sur **${ORDER_STAGES[order.stageIndex]}**.`
+        });
+      }
+    }
+
+    if (interaction.isModalSubmit()) {
+      if (interaction.customId === 'suggestion_modal') {
+        const config = getGuildConfig(interaction.guild.id);
+        const channel = interaction.guild.channels.cache.get(
+          config.channels.suggestion
+        );
+
+        const text = interaction.fields.getTextInputValue('suggestion_text');
+
+        if (channel && channel.isTextBased()) {
+          await channel.send({
+            embeds: [
+              makeEmbed(
+                `💡 Suggestion de ${interaction.user.username}`,
+                text,
+                0xF1C40F
+              )
+            ]
+          });
+        }
+
+        return interaction.reply({
+          content: '✅ Ta suggestion a été envoyée.',
+          flags: MessageFlags.Ephemeral
+        });
+      }
+
+      if (interaction.customId === 'quote_request_modal') {
+        const projectName = interaction.fields.getTextInputValue('project_name');
+        const service = interaction.fields.getTextInputValue('service');
+        const description = interaction.fields.getTextInputValue('description');
+
+        const quote = await createQuote(
+          interaction.guild,
+          interaction.user.id,
+          projectName,
+          service,
+          description
+        );
+
+        const config = getGuildConfig(interaction.guild.id);
+        const member = interaction.member;
+
+        if (
+          member &&
+          config.roles.prospect &&
+          !member.roles.cache.has(config.roles.prospect) &&
+          !member.roles.cache.has(config.roles.client)
+        ) {
+          await member.roles.add(config.roles.prospect).catch(() => {});
+        }
+
+        return interaction.reply({
+          content: `✅ Ta demande de devis a été créée : **${quote.id}**. L’équipe va l’étudier.`,
+          flags: MessageFlags.Ephemeral
+        });
+      }
+
+      if (interaction.customId.startsWith('ticket_quote_modal:')) {
+        const ticketId = interaction.customId.split(':')[1];
+        const ops = loadJson(OPS_FILE);
+        const ticket = ops.tickets[ticketId];
+
+        if (!ticket) {
+          return interaction.reply({
+            content: '❌ Ticket introuvable.',
+            flags: MessageFlags.Ephemeral
+          });
+        }
+
+        const priceRaw = interaction.fields.getTextInputValue('price').replace(',', '.');
+        const price = Number(priceRaw);
+
+        if (!Number.isFinite(price) || price < 0) {
+          return interaction.reply({
+            content: '❌ Prix invalide.',
+            flags: MessageFlags.Ephemeral
+          });
+        }
+
+        const quote = await createQuote(
+          interaction.guild,
+          ticket.userId,
+          interaction.fields.getTextInputValue('project_name'),
+          interaction.fields.getTextInputValue('service'),
+          interaction.fields.getTextInputValue('description'),
+          price,
+          ticketId
+        );
+
+        await dmUser(ticket.userId, {
+          embeds: [
+            makeEmbed(
+              `💰 Proposition de devis — ${quote.id}`,
+              `Projet : **${quote.projectName}**\nPrix proposé : **${quote.price} €**\n\nLe personnel peut maintenant transformer ce devis en commande lorsque tout est validé.`,
               0xF1C40F
             )
           ]
         });
+
+        return interaction.reply({
+          content: `✅ Devis **${quote.id}** créé à partir du ticket **${ticketId}**.`
+        });
       }
 
-      return interaction.reply({
-        content:
-          '✅ Ta suggestion a été envoyée.',
-        flags:
-          MessageFlags.Ephemeral
-      });
-    }
+      if (interaction.customId.startsWith('quote_price_modal:')) {
+        const quoteId = interaction.customId.split(':')[1];
+        const ops = loadJson(OPS_FILE);
+        const quote = ops.quotes[quoteId];
 
-    if (
-      interaction.isButton() &&
-      interaction.customId === 'service_devis'
-    ) {
-      return interaction.reply({
-        content:
-          '💰 Pour demander un devis, ouvre un ticket de type **Devis**.',
-        flags:
-          MessageFlags.Ephemeral
-      });
-    }
+        if (!quote) {
+          return interaction.reply({
+            content: '❌ Devis introuvable.',
+            flags: MessageFlags.Ephemeral
+          });
+        }
 
-    if (
-      interaction.isButton() &&
-      interaction.customId === 'service_commander'
-    ) {
-      return interaction.reply({
-        content:
-          '📝 Pour commander, commence par ouvrir un ticket de type **Commande** ou **Devis**.',
-        flags:
-          MessageFlags.Ephemeral
-      });
-    }
-
-    if (
-      interaction.isButton() &&
-      interaction.customId === 'service_question'
-    ) {
-      return interaction.reply({
-        content:
-          '❓ Pour poser une question, ouvre un ticket de type **Support**.',
-        flags:
-          MessageFlags.Ephemeral
-      });
-    }
-
-    if (
-      interaction.isStringSelectMenu() &&
-      interaction.customId === 'ticket_type'
-    ) {
-      const config =
-        getGuildConfig(
-          interaction.guild.id
+        const price = Number(
+          interaction.fields.getTextInputValue('price').replace(',', '.')
         );
 
-      const categoryId =
-        config.categories.tickets ||
-        config.categories.support;
-
-      if (!categoryId) {
-        return interaction.reply({
-          content:
-            '❌ Aucune catégorie Tickets ou Support n’a encore été configurée.',
-          flags:
-            MessageFlags.Ephemeral
-        });
-      }
-
-      const type =
-        interaction.values[0];
-
-      const staffRoleId =
-        config.roles.staff;
-
-      const permissions = [
-        {
-          id:
-            interaction.guild.roles.everyone.id,
-          deny: [
-            PermissionFlagsBits.ViewChannel
-          ]
-        },
-        {
-          id:
-            interaction.user.id,
-          allow: [
-            PermissionFlagsBits.ViewChannel,
-            PermissionFlagsBits.SendMessages,
-            PermissionFlagsBits.ReadMessageHistory,
-            PermissionFlagsBits.AttachFiles
-          ]
+        if (!Number.isFinite(price) || price < 0) {
+          return interaction.reply({
+            content: '❌ Prix invalide.',
+            flags: MessageFlags.Ephemeral
+          });
         }
-      ];
 
-      if (staffRoleId) {
-        permissions.push({
-          id:
-            staffRoleId,
-          allow: [
-            PermissionFlagsBits.ViewChannel,
-            PermissionFlagsBits.SendMessages,
-            PermissionFlagsBits.ReadMessageHistory
+        quote.price = price;
+        quote.status = 'Prix défini';
+        ops.quotes[quoteId] = quote;
+        saveJson(OPS_FILE, ops);
+
+        await refreshQuoteMessage(interaction.guild, quote);
+
+        await dmUser(quote.userId, {
+          embeds: [
+            makeEmbed(
+              `💰 Mise à jour du devis ${quoteId}`,
+              `Le prix proposé pour **${quote.projectName}** est maintenant de **${price} €**.`,
+              0xF1C40F
+            )
           ]
+        });
+
+        return interaction.reply({
+          content: `✅ Prix du devis **${quoteId}** mis à jour à **${price} €**.`
         });
       }
 
-      const ticketChannel =
-        await interaction.guild.channels.create({
-          name:
-            `${type}-${interaction.user.username}`
-              .toLowerCase()
-              .replace(
-                /[^a-z0-9-]/g,
-                ''
-              )
-              .slice(
-                0,
-                90
-              ),
-          type:
-            ChannelType.GuildText,
-          parent:
-            categoryId,
-          permissionOverwrites:
-            permissions
+      if (interaction.customId.startsWith('contact_quote_modal:')) {
+        const quoteId = interaction.customId.split(':')[1];
+        const ops = loadJson(OPS_FILE);
+        const quote = ops.quotes[quoteId];
+
+        if (!quote) {
+          return interaction.reply({
+            content: '❌ Devis introuvable.',
+            flags: MessageFlags.Ephemeral
+          });
+        }
+
+        const text = interaction.fields.getTextInputValue('message');
+
+        const ok = await dmUser(quote.userId, {
+          embeds: [
+            makeEmbed(
+              `💬 Message concernant ton devis ${quoteId}`,
+              text,
+              0x5865F2
+            )
+          ]
         });
 
-      await ticketChannel.send({
-        content:
-          `${interaction.user}`,
-        embeds: [
-          makeEmbed(
-            `🎫 Ticket ${type}`,
-            `Bonjour ${interaction.user}.\n\nExplique ta demande le plus précisément possible. Un membre de l’équipe te répondra dès que possible.`
-          )
-        ]
-      });
+        return interaction.reply({
+          content: ok ? '✅ Message envoyé au client en MP.' : '❌ Impossible d’envoyer un MP au client.',
+          flags: MessageFlags.Ephemeral
+        });
+      }
 
-      return interaction.reply({
-        content:
-          `✅ Ton ticket a été créé : ${ticketChannel}`,
-        flags:
-          MessageFlags.Ephemeral
-      });
+      if (interaction.customId.startsWith('contact_order_modal:')) {
+        const orderId = interaction.customId.split(':')[1];
+        const ops = loadJson(OPS_FILE);
+        const order = ops.orders[orderId];
+
+        if (!order) {
+          return interaction.reply({
+            content: '❌ Commande introuvable.',
+            flags: MessageFlags.Ephemeral
+          });
+        }
+
+        const text = interaction.fields.getTextInputValue('message');
+
+        const ok = await dmUser(order.userId, {
+          embeds: [
+            makeEmbed(
+              `💬 Message concernant ta commande ${orderId}`,
+              text,
+              0x5865F2
+            )
+          ]
+        });
+
+        return interaction.reply({
+          content: ok ? '✅ Message envoyé au client en MP.' : '❌ Impossible d’envoyer un MP au client.',
+          flags: MessageFlags.Ephemeral
+        });
+      }
+
+      if (interaction.customId === 'declare_payment_modal') {
+        const orderId = interaction.fields
+          .getTextInputValue('order_id')
+          .trim()
+          .toUpperCase();
+
+        const proof = interaction.fields.getTextInputValue('proof');
+        const ops = loadJson(OPS_FILE);
+        const order = ops.orders[orderId];
+
+        if (
+          !order ||
+          order.guildId !== interaction.guild.id ||
+          order.userId !== interaction.user.id
+        ) {
+          return interaction.reply({
+            content: '❌ Cette commande est introuvable ou ne t’appartient pas.',
+            flags: MessageFlags.Ephemeral
+          });
+        }
+
+        const paymentId = nextId('payments', 'PAY');
+        const payment = {
+          id: paymentId,
+          guildId: interaction.guild.id,
+          orderId,
+          userId: interaction.user.id,
+          proof,
+          status: 'En attente',
+          createdAt: new Date().toISOString()
+        };
+
+        const latest = loadJson(OPS_FILE);
+        latest.payments[paymentId] = payment;
+        saveJson(OPS_FILE, latest);
+
+        const config = getGuildConfig(interaction.guild.id);
+        const orderChannel = interaction.guild.channels.cache.get(order.channelId);
+
+        const targetChannel =
+          orderChannel ||
+          interaction.guild.channels.cache.get(config.channels.paiements);
+
+        if (targetChannel && targetChannel.isTextBased()) {
+          await targetChannel.send({
+            embeds: [
+              makeEmbed(
+                `💳 Paiement déclaré — ${paymentId}`,
+                `Commande : **${orderId}**\nClient : ${interaction.user}\n\n**Preuve / référence :**\n${proof}`,
+                0xF39C12
+              )
+            ],
+            components: [
+              new ActionRowBuilder().addComponents(
+                new ButtonBuilder()
+                  .setCustomId(`payment_accept:${paymentId}`)
+                  .setLabel('Valider le paiement')
+                  .setStyle(ButtonStyle.Success),
+                new ButtonBuilder()
+                  .setCustomId(`payment_refuse:${paymentId}`)
+                  .setLabel('Refuser le paiement')
+                  .setStyle(ButtonStyle.Danger)
+              )
+            ]
+          });
+        }
+
+        return interaction.reply({
+          content: `✅ Paiement déclaré sous le numéro **${paymentId}**. Le personnel va le vérifier.`,
+          flags: MessageFlags.Ephemeral
+        });
+      }
     }
   } catch (error) {
-    console.error(
-      '❌ Erreur interaction :',
-      error
-    );
+    console.error('❌ Erreur interaction :', error);
 
-    if (
-      !interaction.replied &&
-      !interaction.deferred
-    ) {
+    if (!interaction.replied && !interaction.deferred) {
       await interaction.reply({
-        content:
-          '❌ Une erreur est survenue.',
-        flags:
-          MessageFlags.Ephemeral
+        content: '❌ Une erreur est survenue.',
+        flags: MessageFlags.Ephemeral
       }).catch(() => {});
     }
   }
 });
 
-client.on(
-  Events.Error,
-  error => {
-    console.error(
-      '❌ Erreur Discord :',
-      error
-    );
-  }
-);
+client.on(Events.Error, error => {
+  console.error('❌ Erreur Discord :', error);
+});
 
-process.on(
-  'unhandledRejection',
-  error => {
-    console.error(
-      '❌ Promesse non gérée :',
-      error
-    );
-  }
-);
+process.on('unhandledRejection', error => {
+  console.error('❌ Promesse non gérée :', error);
+});
 
-client.login(
-  process.env.TOKEN
-);
+client.login(process.env.TOKEN);
