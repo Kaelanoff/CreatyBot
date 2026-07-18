@@ -76,7 +76,7 @@ const RULES_TEXT = [
   'Le spam, le flood, les mentions abusives, l’envoi répété du même message et toute utilisation gênante des salons sont interdits.',
   '',
   '**3. Publicité**',
-  'La publicité non autorisée pour un serveur, un bot, une entreprise, un réseau social ou un service externe est interdite. Les espaces prévus pour présenter vos créations restent soumis aux règles du serveur.',
+  'La publicité non autorisée pour un serveur, un bot, une entreprise, un réseau social ou un service externe est interdite.',
   '',
   '**4. Contenus interdits**',
   'Les contenus illégaux, choquants, haineux, pornographiques, violents ou dangereux sont strictement interdits.',
@@ -91,13 +91,13 @@ const RULES_TEXT = [
   'Les tickets doivent être utilisés uniquement pour une demande réelle. Les tickets inutiles, le spam du support ou les abus peuvent entraîner des sanctions.',
   '',
   '**8. Personnel et décisions**',
-  'Merci de respecter les décisions du personnel. En cas de désaccord, utilisez calmement le support au lieu de créer un conflit dans les salons publics.',
+  'Merci de respecter les décisions du personnel. En cas de désaccord, utilisez calmement le support.',
   '',
   '**9. Utilisation des créations**',
   'Les créations livrées restent soumises aux conditions définies lors de la commande. Il est interdit de revendre, copier ou redistribuer un travail sans autorisation lorsque cela n’est pas prévu.',
   '',
   '**10. Acceptation du règlement**',
-  'En cliquant sur le bouton ci-dessous, tu confirmes avoir lu et accepté ce règlement. Le rôle **Membre** pourra alors t’être attribué automatiquement.',
+  'En cliquant sur le bouton ci-dessous, tu confirmes avoir lu et accepté ce règlement.',
   '',
   'Le règlement peut évoluer. Les membres restent responsables du respect de sa version la plus récente.'
 ].join('\n');
@@ -189,12 +189,9 @@ const CHANNEL_KEYS = [
   ['journal_direction', 'Journal de direction']
 ];
 
+// Seules les catégories qui servent réellement à créer des salons privés.
 const CATEGORY_KEYS = [
   ['tickets', 'Catégorie Tickets'],
-  ['devis_prives', 'Catégorie Devis privés'],
-  ['commandes_privees', 'Catégorie Commandes privées'],
-  ['projets_prives', 'Catégorie Projets privés'],
-  ['archives_privees', 'Catégorie Archives privées'],
   ['tickets_premium', 'Catégorie Tickets Premium']
 ];
 
@@ -232,15 +229,15 @@ const PANEL_DEFINITIONS = {
   vos_bots: ['🤖 Vos bots', 'Présente ici les bots Discord et projets que tu as créés.', 0x5865F2],
   presentation: ['👋 Présentations', 'Présente-toi à la communauté.', 0x57F287],
   evenements: ['🎉 Événements', 'Les événements et animations seront annoncés ici.', 0xE91E63],
-  creation_bot: ['🤖 Création de bot Discord', 'Création de bots Discord personnalisés : modération, tickets, économie, automatisation, commandes slash et plus.', 0x5865F2, 'service'],
+  creation_bot: ['🤖 Création de bot Discord', 'Création de bots Discord personnalisés : modération, tickets, automatisation, commandes slash et plus.', 0x5865F2, 'service'],
   creation_serveur: ['💬 Création de serveur Discord', 'Création et configuration complète de serveurs Discord.', 0x5865F2, 'service'],
   hebergement: ['🌐 Hébergement', 'Solutions d’hébergement pour maintenir vos projets en ligne.', 0x3498DB, 'service'],
   tarifs: ['💰 Tarifs', 'Les tarifs officiels sont présentés ici. Pour un projet personnalisé, demande un devis.', 0xF1C40F, 'quote'],
   garantie: ['📃 Garantie', 'Conditions de garantie, corrections, maintenance et service après-vente.', 0x95A5A6],
-  commander: ['📝 Commander', 'Clique sur le bouton pour démarrer une commande. Le bot t’enverra un message privé afin de recueillir les informations de ton projet.', 0x5865F2, 'order'],
+  commander: ['📝 Commander', 'Clique sur le bouton pour démarrer une commande. Le bot t’enverra un message privé pour recueillir les informations de ton projet.', 0x5865F2, 'order'],
   demander_devis: ['💰 Demander un devis', 'Clique sur le bouton pour envoyer une demande de devis détaillée.', 0xF1C40F, 'quote'],
   suivi_commandes: ['📦 Suivi client', 'Consulte tes devis, commandes et projets. Les réponses sont privées et visibles uniquement par toi.', 0x3498DB, 'tracking'],
-  paiements: ['💳 Paiements', 'Après acceptation d’une commande, le lien de paiement officiel est envoyé en message privé. Tu peux ensuite déclarer ton paiement ici.', 0x2ECC71, 'payment'],
+  paiements: ['💳 Paiements', 'Après acceptation d’une commande, le lien PayPal officiel est envoyé en message privé. La déclaration du paiement est ensuite vérifiée par le personnel.', 0x2ECC71, 'payment'],
   conditions: ['📜 Conditions', 'Conditions applicables aux devis, commandes, paiements, délais, livraisons et garanties.', 0x95A5A6],
   questions_commandes: ['❓ Questions commandes', 'Ouvre un ticket pour toute question concernant un devis, une commande ou un paiement.', 0xF1C40F, 'ticket'],
   offres_speciales: ['🎯 Offres spéciales', 'Promotions et offres temporaires de Creaty Bot.', 0xE91E63],
@@ -258,18 +255,18 @@ const PANEL_DEFINITIONS = {
   documentation: ['📚 Documentation', 'Documentation technique et procédures internes.', 0x3498DB],
   tests_dev: ['🧪 Tests développement', 'Suivi des fonctionnalités en phase de test.', 0x9B59B6],
   bugs: ['🐞 Bugs', 'Suivi des bugs détectés sur les projets et outils internes.', 0xED4245],
-  liste_projets: ['📋 Liste des projets', 'Tableau général des projets actifs. Il est mis à jour automatiquement par Creaty Bot.', 0x5865F2],
-  projets_attente: ['🟢 Projets en attente', 'Projets payés et acceptés, en attente de prise en charge.', 0x57F287],
-  analyse: ['🟡 Projets en analyse', 'Projets actuellement en phase d’analyse.', 0xF1C40F],
-  developpement: ['🔵 Projets en développement', 'Projets actuellement en développement.', 0x3498DB],
-  tests_projets: ['🟣 Projets en tests', 'Projets actuellement en phase de tests.', 0x9B59B6],
-  corrections: ['🟠 Projets en corrections', 'Projets nécessitant des corrections ou ajustements.', 0xE67E22],
-  termines: ['✅ Projets terminés', 'Projets dont la réalisation est terminée.', 0x57F287],
-  livraisons_projets: ['📦 Livraisons projets', 'Projets prêts à être livrés ou en cours de livraison.', 0x2ECC71],
-  archives: ['📁 Archives projets', 'Historique des projets archivés.', 0x95A5A6],
-  ventes: ['💰 Ventes', 'Chaque vente validée apparaîtra ici automatiquement.', 0xF1C40F],
-  devis_commerciaux: ['📋 Devis', 'Tous les devis demandés et leur statut sont suivis ici.', 0xF1C40F],
-  commandes_commerciales: ['📦 Commandes', 'Toutes les commandes et leur statut sont suivis ici.', 0x3498DB],
+  liste_projets: ['📋 Liste des projets', 'Tous les projets sont suivis ici. Chaque fiche est mise à jour automatiquement.', 0x5865F2],
+  projets_attente: ['🟢 Projets en attente', 'Tous les projets actuellement en attente apparaissent ici.', 0x57F287],
+  analyse: ['🟡 Projets en analyse', 'Tous les projets actuellement en analyse apparaissent ici.', 0xF1C40F],
+  developpement: ['🔵 Projets en développement', 'Tous les projets actuellement en développement apparaissent ici.', 0x3498DB],
+  tests_projets: ['🟣 Projets en tests', 'Tous les projets actuellement en phase de tests apparaissent ici.', 0x9B59B6],
+  corrections: ['🟠 Projets en corrections', 'Tous les projets actuellement en correction apparaissent ici.', 0xE67E22],
+  termines: ['✅ Projets terminés', 'Tous les projets terminés apparaissent ici.', 0x57F287],
+  livraisons_projets: ['📦 Livraisons projets', 'Tous les projets en cours de livraison apparaissent ici.', 0x2ECC71],
+  archives: ['📁 Archives projets', 'Tous les projets archivés apparaissent ici.', 0x95A5A6],
+  ventes: ['💰 Ventes', 'Chaque vente validée apparaît ici automatiquement.', 0xF1C40F],
+  devis_commerciaux: ['📋 Devis', 'Tous les devis demandés apparaissent ici sous forme de fiches gérées par le personnel.', 0xF1C40F],
+  commandes_commerciales: ['📦 Commandes', 'Toutes les commandes apparaissent ici sous forme de fiches gérées par le personnel.', 0x3498DB],
   statistiques_commerciales: ['📊 Statistiques commerciales', 'Statistiques automatiques sur les devis, commandes et ventes.', 0x9B59B6],
   objectifs: ['🎯 Objectifs', 'Suivi automatique de l’objectif mensuel de chiffre d’affaires.', 0xE91E63],
   chiffre_affaires: ['📈 Chiffre d’affaires', 'Suivi automatique du chiffre d’affaires basé uniquement sur les paiements validés.', 0x2ECC71],
@@ -327,7 +324,8 @@ function ensureFiles() {
         orders: {},
         payments: {},
         projects: {},
-        sales: {}
+        sales: {},
+        audit: []
       }, null, 2)
     );
   }
@@ -343,12 +341,10 @@ function saveJson(file, data) {
   fs.writeFileSync(file, JSON.stringify(data, null, 2));
 }
 
-function migrateGuildConfig(guildId) {
+function migrateConfig(guildId) {
   const data = loadJson(CONFIG_FILE);
 
-  if (!data.guilds[guildId]) {
-    data.guilds[guildId] = {};
-  }
+  if (!data.guilds[guildId]) data.guilds[guildId] = {};
 
   const cfg = data.guilds[guildId];
   if (!cfg.channels) cfg.channels = {};
@@ -375,16 +371,19 @@ function migrateOperations() {
     if (!data[key]) data[key] = {};
   }
 
+  if (!Array.isArray(data.audit)) data.audit = [];
+
   saveJson(OPS_FILE, data);
   return data;
 }
 
-function getGuildConfig(guildId) {
-  return migrateGuildConfig(guildId);
+function getConfig(guildId) {
+  return migrateConfig(guildId);
 }
 
-function updateGuildConfig(guildId, section, key, value) {
+function updateConfig(guildId, section, key, value) {
   const data = loadJson(CONFIG_FILE);
+
   if (!data.guilds[guildId]) data.guilds[guildId] = {};
   const cfg = data.guilds[guildId];
 
@@ -393,11 +392,28 @@ function updateGuildConfig(guildId, section, key, value) {
   if (!cfg.roles) cfg.roles = {};
   if (!cfg.panels) cfg.panels = {};
   if (!cfg.settings) cfg.settings = {};
-
   if (!cfg[section]) cfg[section] = {};
-  cfg[section][key] = value;
 
+  cfg[section][key] = value;
   saveJson(CONFIG_FILE, data);
+}
+
+function audit(guildId, type, id, action, actorId = null) {
+  const data = migrateOperations();
+  data.audit.push({
+    guildId,
+    type,
+    id,
+    action,
+    actorId,
+    at: new Date().toISOString()
+  });
+
+  if (data.audit.length > 5000) {
+    data.audit = data.audit.slice(-5000);
+  }
+
+  saveJson(OPS_FILE, data);
 }
 
 function nextId(counter, prefix) {
@@ -429,28 +445,6 @@ function hasStaffAccess(member, config) {
   if (!member) return false;
   if (isAdmin(member)) return true;
 
-  const allowed = [
-    config.roles.staff,
-    config.roles.commercial,
-    config.roles.developpeur,
-    config.roles.moderateur,
-    config.roles.administrateur,
-    config.roles.directeur,
-    config.roles.cofondateur,
-    config.roles.fondateur
-  ].filter(Boolean);
-
-  return member.roles.cache.some(role => allowed.includes(role.id));
-}
-
-function getStaffOverwrites(guild, config) {
-  const overwrites = [
-    {
-      id: guild.roles.everyone.id,
-      deny: [PermissionFlagsBits.ViewChannel]
-    }
-  ];
-
   const roleIds = [
     config.roles.staff,
     config.roles.commercial,
@@ -462,20 +456,7 @@ function getStaffOverwrites(guild, config) {
     config.roles.fondateur
   ].filter(Boolean);
 
-  for (const roleId of [...new Set(roleIds)]) {
-    overwrites.push({
-      id: roleId,
-      allow: [
-        PermissionFlagsBits.ViewChannel,
-        PermissionFlagsBits.SendMessages,
-        PermissionFlagsBits.ReadMessageHistory,
-        PermissionFlagsBits.AttachFiles,
-        PermissionFlagsBits.ManageMessages
-      ]
-    });
-  }
-
-  return overwrites;
+  return member.roles.cache.some(role => roleIds.includes(role.id));
 }
 
 async function dmUser(userId, payload) {
@@ -488,7 +469,7 @@ async function dmUser(userId, payload) {
   }
 }
 
-function buildPanelComponents(type) {
+function panelComponents(type) {
   if (type === 'rules') {
     return [
       new ActionRowBuilder().addComponents(
@@ -536,18 +517,9 @@ function buildPanelComponents(type) {
   if (type === 'service') {
     return [
       new ActionRowBuilder().addComponents(
-        new ButtonBuilder()
-          .setCustomId('quote_request')
-          .setLabel('Demander un devis')
-          .setStyle(ButtonStyle.Primary),
-        new ButtonBuilder()
-          .setCustomId('order_request')
-          .setLabel('Commander')
-          .setStyle(ButtonStyle.Success),
-        new ButtonBuilder()
-          .setCustomId('ticket_support')
-          .setLabel('Poser une question')
-          .setStyle(ButtonStyle.Secondary)
+        new ButtonBuilder().setCustomId('quote_request').setLabel('Demander un devis').setStyle(ButtonStyle.Primary),
+        new ButtonBuilder().setCustomId('order_request').setLabel('Commander').setStyle(ButtonStyle.Success),
+        new ButtonBuilder().setCustomId('ticket_support').setLabel('Poser une question').setStyle(ButtonStyle.Secondary)
       )
     ];
   }
@@ -555,11 +527,7 @@ function buildPanelComponents(type) {
   if (type === 'quote') {
     return [
       new ActionRowBuilder().addComponents(
-        new ButtonBuilder()
-          .setCustomId('quote_request')
-          .setLabel('Demander un devis')
-          .setEmoji('💰')
-          .setStyle(ButtonStyle.Primary)
+        new ButtonBuilder().setCustomId('quote_request').setLabel('Demander un devis').setEmoji('💰').setStyle(ButtonStyle.Primary)
       )
     ];
   }
@@ -567,15 +535,8 @@ function buildPanelComponents(type) {
   if (type === 'order') {
     return [
       new ActionRowBuilder().addComponents(
-        new ButtonBuilder()
-          .setCustomId('order_request')
-          .setLabel('Commander')
-          .setEmoji('📝')
-          .setStyle(ButtonStyle.Success),
-        new ButtonBuilder()
-          .setCustomId('quote_request')
-          .setLabel('Demander un devis')
-          .setStyle(ButtonStyle.Primary)
+        new ButtonBuilder().setCustomId('order_request').setLabel('Commander').setEmoji('📝').setStyle(ButtonStyle.Success),
+        new ButtonBuilder().setCustomId('quote_request').setLabel('Demander un devis').setStyle(ButtonStyle.Primary)
       )
     ];
   }
@@ -583,18 +544,9 @@ function buildPanelComponents(type) {
   if (type === 'tracking') {
     return [
       new ActionRowBuilder().addComponents(
-        new ButtonBuilder()
-          .setCustomId('my_quotes')
-          .setLabel('Voir mes devis')
-          .setStyle(ButtonStyle.Secondary),
-        new ButtonBuilder()
-          .setCustomId('my_orders')
-          .setLabel('Voir mes commandes')
-          .setStyle(ButtonStyle.Primary),
-        new ButtonBuilder()
-          .setCustomId('my_projects')
-          .setLabel('Voir mes projets')
-          .setStyle(ButtonStyle.Success)
+        new ButtonBuilder().setCustomId('my_quotes').setLabel('Voir mes devis').setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId('my_orders').setLabel('Voir mes commandes').setStyle(ButtonStyle.Primary),
+        new ButtonBuilder().setCustomId('my_projects').setLabel('Voir mes projets').setStyle(ButtonStyle.Success)
       )
     ];
   }
@@ -602,11 +554,7 @@ function buildPanelComponents(type) {
   if (type === 'payment') {
     return [
       new ActionRowBuilder().addComponents(
-        new ButtonBuilder()
-          .setCustomId('declare_payment')
-          .setLabel('Déclarer un paiement')
-          .setEmoji('💳')
-          .setStyle(ButtonStyle.Success)
+        new ButtonBuilder().setCustomId('declare_payment').setLabel('Déclarer un paiement').setEmoji('💳').setStyle(ButtonStyle.Success)
       )
     ];
   }
@@ -615,7 +563,7 @@ function buildPanelComponents(type) {
 }
 
 async function installOrUpdatePanel(guild, key) {
-  const config = getGuildConfig(guild.id);
+  const config = getConfig(guild.id);
   const channelId = config.channels[key];
   const def = PANEL_DEFINITIONS[key];
 
@@ -627,7 +575,7 @@ async function installOrUpdatePanel(guild, key) {
   const [title, description, color, componentType] = def;
   const payload = {
     embeds: [makeEmbed(title, description, color)],
-    components: buildPanelComponents(componentType)
+    components: panelComponents(componentType)
   };
 
   const oldId = config.panels[key];
@@ -641,89 +589,9 @@ async function installOrUpdatePanel(guild, key) {
   }
 
   const message = await channel.send(payload);
-  updateGuildConfig(guild.id, 'panels', key, message.id);
+  updateConfig(guild.id, 'panels', key, message.id);
 
   return { success: true, action: 'created' };
-}
-
-async function createPrivateStaffChannel(guild, categoryId, name, config) {
-  return guild.channels.create({
-    name: name.toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, 90),
-    type: ChannelType.GuildText,
-    parent: categoryId || undefined,
-    permissionOverwrites: getStaffOverwrites(guild, config)
-  });
-}
-
-function ticketButtons(ticketId) {
-  return [
-    new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId(`ticket_claim:${ticketId}`).setLabel('Prendre le ticket').setStyle(ButtonStyle.Primary),
-      new ButtonBuilder().setCustomId(`ticket_quote:${ticketId}`).setLabel('Créer un devis').setStyle(ButtonStyle.Success),
-      new ButtonBuilder().setCustomId(`ticket_contact:${ticketId}`).setLabel('Contacter en MP').setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId(`ticket_close:${ticketId}`).setLabel('Fermer').setStyle(ButtonStyle.Danger)
-    )
-  ];
-}
-
-function quoteButtons(quoteId, status) {
-  const disabled = status === 'Archivé' || status === 'Refusé';
-
-  return [
-    new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId(`quote_claim:${quoteId}`).setLabel('Prendre le devis').setStyle(ButtonStyle.Primary).setDisabled(disabled),
-      new ButtonBuilder().setCustomId(`quote_price:${quoteId}`).setLabel('Définir / modifier le prix').setStyle(ButtonStyle.Secondary).setDisabled(disabled),
-      new ButtonBuilder().setCustomId(`quote_send:${quoteId}`).setLabel('Envoyer au client').setStyle(ButtonStyle.Success).setDisabled(disabled),
-      new ButtonBuilder().setCustomId(`quote_contact:${quoteId}`).setLabel('Contacter le client').setStyle(ButtonStyle.Secondary).setDisabled(disabled)
-    ),
-    new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId(`quote_order:${quoteId}`).setLabel('Transformer en commande').setStyle(ButtonStyle.Success).setDisabled(status !== 'Accepté par le client'),
-      new ButtonBuilder().setCustomId(`quote_refuse:${quoteId}`).setLabel('Refuser').setStyle(ButtonStyle.Danger).setDisabled(disabled),
-      new ButtonBuilder().setCustomId(`quote_archive:${quoteId}`).setLabel('Archiver').setStyle(ButtonStyle.Secondary).setDisabled(status === 'Archivé')
-    )
-  ];
-}
-
-function orderButtons(orderId, status) {
-  const closed = status === 'Refusée' || status === 'Archivée';
-
-  return [
-    new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId(`order_claim:${orderId}`).setLabel('Prendre la commande').setStyle(ButtonStyle.Primary).setDisabled(closed),
-      new ButtonBuilder().setCustomId(`order_accept:${orderId}`).setLabel('Accepter la commande').setStyle(ButtonStyle.Success).setDisabled(status !== 'En attente d’acceptation'),
-      new ButtonBuilder().setCustomId(`order_refuse:${orderId}`).setLabel('Refuser').setStyle(ButtonStyle.Danger).setDisabled(closed),
-      new ButtonBuilder().setCustomId(`order_contact:${orderId}`).setLabel('Contacter le client').setStyle(ButtonStyle.Secondary).setDisabled(closed)
-    ),
-    new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId(`order_payment:${orderId}`).setLabel('Envoyer le paiement').setStyle(ButtonStyle.Success).setDisabled(status !== 'Acceptée'),
-      new ButtonBuilder().setCustomId(`order_archive:${orderId}`).setLabel('Archiver').setStyle(ButtonStyle.Secondary).setDisabled(status === 'Archivée')
-    )
-  ];
-}
-
-function projectButtons(projectId, stageIndex) {
-  return [
-    new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId(`project_claim:${projectId}`).setLabel('Prendre le projet').setStyle(ButtonStyle.Primary),
-      new ButtonBuilder().setCustomId(`project_prev:${projectId}`).setLabel('Étape précédente').setStyle(ButtonStyle.Secondary).setDisabled(stageIndex <= 0),
-      new ButtonBuilder().setCustomId(`project_next:${projectId}`).setLabel('Étape suivante').setStyle(ButtonStyle.Success).setDisabled(stageIndex >= PROJECT_STAGES.length - 1),
-      new ButtonBuilder().setCustomId(`project_contact:${projectId}`).setLabel('Contacter le client').setStyle(ButtonStyle.Secondary)
-    ),
-    new ActionRowBuilder().addComponents(
-      new StringSelectMenuBuilder()
-        .setCustomId(`project_stage:${projectId}`)
-        .setPlaceholder('Choisir directement une étape')
-        .addOptions(
-          PROJECT_STAGES.map((stage, index) => ({
-            label: stage.label,
-            description: `${stage.progress}%`,
-            value: String(index),
-            emoji: stage.emoji,
-            default: index === stageIndex
-          }))
-        )
-    )
-  ];
 }
 
 function quoteEmbed(quote) {
@@ -732,7 +600,7 @@ function quoteEmbed(quote) {
     [
       `**Client :** <@${quote.userId}>`,
       `**Service :** ${quote.service}`,
-      `**Prix :** ${quote.price !== null ? `${quote.price} €` : 'À définir'}`,
+      `**Prix :** ${quote.price !== null ? `${Number(quote.price).toFixed(2)} €` : 'À définir'}`,
       `**Statut :** ${quote.status}`,
       `**Responsable :** ${quote.claimedBy ? `<@${quote.claimedBy}>` : 'Aucun'}`,
       '',
@@ -743,6 +611,22 @@ function quoteEmbed(quote) {
   );
 }
 
+function quoteButtons(quote) {
+  return [
+    new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId(`quote_claim:${quote.id}`).setLabel('Prendre le devis').setStyle(ButtonStyle.Primary),
+      new ButtonBuilder().setCustomId(`quote_price:${quote.id}`).setLabel('Définir / modifier le prix').setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId(`quote_send:${quote.id}`).setLabel('Envoyer au client').setStyle(ButtonStyle.Success),
+      new ButtonBuilder().setCustomId(`quote_contact:${quote.id}`).setLabel('Contacter le client').setStyle(ButtonStyle.Secondary)
+    ),
+    new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId(`quote_order:${quote.id}`).setLabel('Transformer en commande').setStyle(ButtonStyle.Success).setDisabled(quote.status !== 'Accepté par le client'),
+      new ButtonBuilder().setCustomId(`quote_refuse:${quote.id}`).setLabel('Refuser').setStyle(ButtonStyle.Danger),
+      new ButtonBuilder().setCustomId(`quote_archive:${quote.id}`).setLabel('Archiver').setStyle(ButtonStyle.Secondary)
+    )
+  ];
+}
+
 function orderEmbed(order) {
   return makeEmbed(
     `📦 ${order.id} — ${order.projectName}`,
@@ -750,14 +634,29 @@ function orderEmbed(order) {
       `**Client :** <@${order.userId}>`,
       `**Service :** ${order.service}`,
       `**Devis lié :** ${order.quoteId || 'Aucun'}`,
-      `**Prix :** ${order.price !== null ? `${order.price} €` : 'À définir'}`,
+      `**Prix :** ${order.price !== null ? `${Number(order.price).toFixed(2)} €` : 'À définir'}`,
       `**Statut :** ${order.status}`,
       `**Paiement :** ${order.paymentStatus}`,
       `**Responsable :** ${order.claimedBy ? `<@${order.claimedBy}>` : 'Aucun'}`,
-      `**Projet créé :** ${order.projectId || 'Non'}`
+      `**Projet :** ${order.projectId || 'Pas encore créé'}`
     ].join('\n'),
     0x3498DB
   );
+}
+
+function orderButtons(order) {
+  return [
+    new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId(`order_claim:${order.id}`).setLabel('Prendre la commande').setStyle(ButtonStyle.Primary),
+      new ButtonBuilder().setCustomId(`order_accept:${order.id}`).setLabel('Accepter').setStyle(ButtonStyle.Success).setDisabled(order.status !== 'En attente d’acceptation'),
+      new ButtonBuilder().setCustomId(`order_refuse:${order.id}`).setLabel('Refuser').setStyle(ButtonStyle.Danger),
+      new ButtonBuilder().setCustomId(`order_contact:${order.id}`).setLabel('Contacter le client').setStyle(ButtonStyle.Secondary)
+    ),
+    new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId(`order_payment:${order.id}`).setLabel('Envoyer le paiement').setStyle(ButtonStyle.Success).setDisabled(order.status !== 'Acceptée'),
+      new ButtonBuilder().setCustomId(`order_archive:${order.id}`).setLabel('Archiver').setStyle(ButtonStyle.Secondary)
+    )
+  ];
 }
 
 function projectEmbed(project) {
@@ -768,7 +667,7 @@ function projectEmbed(project) {
     [
       `**Client :** <@${project.userId}>`,
       `**Commande :** ${project.orderId}`,
-      `**Développeur / responsable :** ${project.claimedBy ? `<@${project.claimedBy}>` : 'Aucun'}`,
+      `**Responsable :** ${project.claimedBy ? `<@${project.claimedBy}>` : 'Aucun'}`,
       `**Étape :** ${stage.label}`,
       `**Progression :** ${stage.progress}%`,
       `**Dernière mise à jour :** <t:${Math.floor(new Date(project.updatedAt).getTime() / 1000)}:R>`
@@ -777,44 +676,154 @@ function projectEmbed(project) {
   );
 }
 
-async function refreshQuoteMessage(guild, quote) {
-  if (!quote.channelId || !quote.messageId) return;
-  try {
-    const channel = await guild.channels.fetch(quote.channelId);
-    const message = await channel.messages.fetch(quote.messageId);
-    await message.edit({
-      embeds: [quoteEmbed(quote)],
-      components: quoteButtons(quote.id, quote.status)
-    });
-  } catch {}
+function projectButtons(project) {
+  return [
+    new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId(`project_claim:${project.id}`).setLabel('Prendre le projet').setStyle(ButtonStyle.Primary),
+      new ButtonBuilder().setCustomId(`project_prev:${project.id}`).setLabel('Étape précédente').setStyle(ButtonStyle.Secondary).setDisabled(project.stageIndex <= 0),
+      new ButtonBuilder().setCustomId(`project_next:${project.id}`).setLabel('Étape suivante').setStyle(ButtonStyle.Success).setDisabled(project.stageIndex >= PROJECT_STAGES.length - 1),
+      new ButtonBuilder().setCustomId(`project_contact:${project.id}`).setLabel('Contacter le client').setStyle(ButtonStyle.Secondary)
+    ),
+    new ActionRowBuilder().addComponents(
+      new StringSelectMenuBuilder()
+        .setCustomId(`project_stage:${project.id}`)
+        .setPlaceholder('Choisir directement une étape')
+        .addOptions(
+          PROJECT_STAGES.map((stage, index) => ({
+            label: stage.label,
+            value: String(index),
+            emoji: stage.emoji,
+            description: `${stage.progress}%`,
+            default: index === project.stageIndex
+          }))
+        )
+    )
+  ];
 }
 
-async function refreshOrderMessage(guild, order) {
-  if (!order.channelId || !order.messageId) return;
-  try {
-    const channel = await guild.channels.fetch(order.channelId);
-    const message = await channel.messages.fetch(order.messageId);
-    await message.edit({
-      embeds: [orderEmbed(order)],
-      components: orderButtons(order.id, order.status)
-    });
-  } catch {}
+async function refreshQuoteCard(guild, quote) {
+  const config = getConfig(guild.id);
+  const channel = guild.channels.cache.get(config.channels.devis_commerciaux);
+  if (!channel || !channel.isTextBased()) return;
+
+  if (quote.messageId) {
+    try {
+      const message = await channel.messages.fetch(quote.messageId);
+      await message.edit({ embeds: [quoteEmbed(quote)], components: quoteButtons(quote) });
+      return;
+    } catch {}
+  }
+
+  const message = await channel.send({
+    embeds: [quoteEmbed(quote)],
+    components: quoteButtons(quote)
+  });
+
+  const ops = migrateOperations();
+  if (ops.quotes[quote.id]) {
+    ops.quotes[quote.id].messageId = message.id;
+    saveJson(OPS_FILE, ops);
+  }
 }
 
-async function refreshProjectMessage(guild, project) {
-  if (!project.channelId || !project.messageId) return;
-  try {
-    const channel = await guild.channels.fetch(project.channelId);
-    const message = await channel.messages.fetch(project.messageId);
-    await message.edit({
-      embeds: [projectEmbed(project)],
-      components: projectButtons(project.id, project.stageIndex)
-    });
-  } catch {}
+async function refreshOrderCard(guild, order) {
+  const config = getConfig(guild.id);
+  const channel = guild.channels.cache.get(config.channels.commandes_commerciales);
+  if (!channel || !channel.isTextBased()) return;
+
+  if (order.messageId) {
+    try {
+      const message = await channel.messages.fetch(order.messageId);
+      await message.edit({ embeds: [orderEmbed(order)], components: orderButtons(order) });
+      return;
+    } catch {}
+  }
+
+  const message = await channel.send({
+    embeds: [orderEmbed(order)],
+    components: orderButtons(order)
+  });
+
+  const ops = migrateOperations();
+  if (ops.orders[order.id]) {
+    ops.orders[order.id].messageId = message.id;
+    saveJson(OPS_FILE, ops);
+  }
 }
 
-async function createQuote(guild, userId, projectName, service, description, price = null, sourceTicketId = null) {
-  const config = getGuildConfig(guild.id);
+async function refreshProjectCards(guild, project) {
+  const config = getConfig(guild.id);
+  const stage = PROJECT_STAGES[project.stageIndex];
+
+  // Fiche générale dans liste-des-projets.
+  const listChannel = guild.channels.cache.get(config.channels.liste_projets);
+
+  if (listChannel && listChannel.isTextBased()) {
+    if (project.listMessageId) {
+      try {
+        const message = await listChannel.messages.fetch(project.listMessageId);
+        await message.edit({ embeds: [projectEmbed(project)], components: projectButtons(project) });
+      } catch {
+        project.listMessageId = null;
+      }
+    }
+
+    if (!project.listMessageId) {
+      const message = await listChannel.send({
+        embeds: [projectEmbed(project)],
+        components: projectButtons(project)
+      });
+      project.listMessageId = message.id;
+    }
+  }
+
+  // La fiche active doit se trouver uniquement dans le salon correspondant à l'étape actuelle.
+  if (project.stageMessageId && project.stageChannelId) {
+    try {
+      const oldChannel = await guild.channels.fetch(project.stageChannelId);
+      const oldMessage = await oldChannel.messages.fetch(project.stageMessageId);
+
+      if (project.stageChannelId !== config.channels[stage.key]) {
+        await oldMessage.delete().catch(() => {});
+        project.stageMessageId = null;
+        project.stageChannelId = null;
+      }
+    } catch {
+      project.stageMessageId = null;
+      project.stageChannelId = null;
+    }
+  }
+
+  const stageChannel = guild.channels.cache.get(config.channels[stage.key]);
+
+  if (stageChannel && stageChannel.isTextBased()) {
+    if (project.stageMessageId && project.stageChannelId === stageChannel.id) {
+      try {
+        const message = await stageChannel.messages.fetch(project.stageMessageId);
+        await message.edit({ embeds: [projectEmbed(project)], components: projectButtons(project) });
+      } catch {
+        project.stageMessageId = null;
+      }
+    }
+
+    if (!project.stageMessageId) {
+      const message = await stageChannel.send({
+        embeds: [projectEmbed(project)],
+        components: projectButtons(project)
+      });
+      project.stageMessageId = message.id;
+      project.stageChannelId = stageChannel.id;
+    }
+  }
+
+  const ops = migrateOperations();
+  if (ops.projects[project.id]) {
+    ops.projects[project.id] = project;
+    saveJson(OPS_FILE, ops);
+  }
+}
+
+async function createQuote(guild, userId, projectName, service, description, sourceTicketId = null) {
   const id = nextId('quotes', 'DEV');
 
   const quote = {
@@ -824,51 +833,38 @@ async function createQuote(guild, userId, projectName, service, description, pri
     projectName,
     service,
     description,
-    price,
+    sourceTicketId,
+    price: null,
     status: 'En attente',
     claimedBy: null,
-    sourceTicketId,
     orderId: null,
-    channelId: null,
     messageId: null,
     createdAt: new Date().toISOString()
   };
-
-  const channel = await createPrivateStaffChannel(
-    guild,
-    config.categories.devis_prives,
-    `devis-${id}`,
-    config
-  );
-
-  const message = await channel.send({
-    embeds: [quoteEmbed(quote)],
-    components: quoteButtons(id, quote.status)
-  });
-
-  quote.channelId = channel.id;
-  quote.messageId = message.id;
 
   const ops = migrateOperations();
   ops.quotes[id] = quote;
   saveJson(OPS_FILE, ops);
 
+  audit(guild.id, 'quote', id, 'Création du devis', userId);
+
+  await refreshQuoteCard(guild, quote);
+
   await dmUser(userId, {
     embeds: [
       makeEmbed(
         `💰 Demande de devis reçue — ${id}`,
-        `Nous avons bien reçu ta demande pour **${projectName}**.\n\nL’équipe va étudier ton projet et pourra ensuite t’envoyer une proposition.`,
+        `Nous avons bien reçu ta demande pour **${projectName}**.\n\nL’équipe va l’étudier et pourra ensuite t’envoyer une proposition.`,
         0xF1C40F
       )
     ]
   });
 
-  await refreshBusinessDashboards(guild);
+  await refreshDashboards(guild);
   return quote;
 }
 
 async function createOrder(guild, userId, projectName, service, description, price = null, quoteId = null) {
-  const config = getGuildConfig(guild.id);
   const id = nextId('orders', 'CMD');
 
   const order = {
@@ -884,25 +880,9 @@ async function createOrder(guild, userId, projectName, service, description, pri
     paymentStatus: 'Non envoyé',
     claimedBy: null,
     projectId: null,
-    channelId: null,
     messageId: null,
     createdAt: new Date().toISOString()
   };
-
-  const channel = await createPrivateStaffChannel(
-    guild,
-    config.categories.commandes_privees,
-    `commande-${id}`,
-    config
-  );
-
-  const message = await channel.send({
-    embeds: [orderEmbed(order)],
-    components: orderButtons(id, order.status)
-  });
-
-  order.channelId = channel.id;
-  order.messageId = message.id;
 
   const ops = migrateOperations();
   ops.orders[id] = order;
@@ -913,17 +893,13 @@ async function createOrder(guild, userId, projectName, service, description, pri
   }
 
   saveJson(OPS_FILE, ops);
+  audit(guild.id, 'order', id, 'Création de la commande', userId);
 
-  const listChannel = guild.channels.cache.get(config.channels.liste_projets);
-  if (listChannel && listChannel.isTextBased()) {
-    await listChannel.send({
-      embeds: [
-        makeEmbed(
-          `📝 Nouvelle commande à étudier — ${id}`,
-          `Client : <@${userId}>\nProjet : **${projectName}**\nService : **${service}**\nStatut : **En attente d’acceptation**`
-        )
-      ]
-    }).catch(() => {});
+  await refreshOrderCard(guild, order);
+
+  if (quoteId) {
+    const latest = migrateOperations();
+    if (latest.quotes[quoteId]) await refreshQuoteCard(guild, latest.quotes[quoteId]);
   }
 
   await dmUser(userId, {
@@ -936,12 +912,11 @@ async function createOrder(guild, userId, projectName, service, description, pri
     ]
   });
 
-  await refreshBusinessDashboards(guild);
+  await refreshDashboards(guild);
   return order;
 }
 
 async function createProjectFromOrder(guild, order) {
-  const config = getGuildConfig(guild.id);
   const id = nextId('projects', 'PROJ');
 
   const project = {
@@ -951,28 +926,14 @@ async function createProjectFromOrder(guild, order) {
     orderId: order.id,
     projectName: order.projectName,
     service: order.service,
-    stageIndex: 0,
     claimedBy: null,
-    channelId: null,
-    messageId: null,
+    stageIndex: 0,
+    listMessageId: null,
+    stageMessageId: null,
+    stageChannelId: null,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString()
   };
-
-  const channel = await createPrivateStaffChannel(
-    guild,
-    config.categories.projets_prives,
-    `projet-${id}`,
-    config
-  );
-
-  const message = await channel.send({
-    embeds: [projectEmbed(project)],
-    components: projectButtons(id, project.stageIndex)
-  });
-
-  project.channelId = channel.id;
-  project.messageId = message.id;
 
   const ops = migrateOperations();
   ops.projects[id] = project;
@@ -982,50 +943,71 @@ async function createProjectFromOrder(guild, order) {
   }
 
   saveJson(OPS_FILE, ops);
+  audit(guild.id, 'project', id, 'Création du projet après paiement validé', null);
 
-  await postProjectStageCard(guild, project, true);
-  await refreshBusinessDashboards(guild);
+  await refreshProjectCards(guild, project);
+
+  const latest = migrateOperations();
+  if (latest.orders[order.id]) {
+    await refreshOrderCard(guild, latest.orders[order.id]);
+  }
 
   await dmUser(order.userId, {
     embeds: [
       makeEmbed(
         `🚀 Projet créé — ${id}`,
-        `Ton paiement a été validé et ton projet **${project.projectName}** est maintenant enregistré.\n\nStatut actuel : **${PROJECT_STAGES[0].label}**.\nTu peux suivre son avancement depuis le salon de suivi des commandes.`,
+        `Ton paiement a été validé et ton projet **${project.projectName}** est maintenant enregistré.\n\nStatut actuel : **${PROJECT_STAGES[0].label}**.\nTu recevras un message privé à chaque changement important.`,
         0x57F287
       )
     ]
   });
 
+  await refreshDashboards(guild);
   return project;
 }
 
-async function postProjectStageCard(guild, project, first = false) {
-  const config = getGuildConfig(guild.id);
-  const stage = PROJECT_STAGES[project.stageIndex];
-  const channel = guild.channels.cache.get(config.channels[stage.key]);
+async function changeProjectStage(guild, project, newIndex, actorId = null) {
+  const oldStage = PROJECT_STAGES[project.stageIndex] || PROJECT_STAGES[0];
+  const newStage = PROJECT_STAGES[newIndex];
 
-  if (!channel || !channel.isTextBased()) return;
+  project.stageIndex = newIndex;
+  project.updatedAt = new Date().toISOString();
 
-  await channel.send({
+  const ops = migrateOperations();
+  ops.projects[project.id] = project;
+  saveJson(OPS_FILE, ops);
+
+  audit(
+    guild.id,
+    'project',
+    project.id,
+    `Étape : ${oldStage.label} → ${newStage.label}`,
+    actorId
+  );
+
+  await refreshProjectCards(guild, project);
+  await refreshDashboards(guild);
+
+  await dmUser(project.userId, {
     embeds: [
       makeEmbed(
-        `${stage.emoji} ${project.id} — ${project.projectName}`,
+        `🚀 Mise à jour de ton projet ${project.id}`,
         [
-          `Client : <@${project.userId}>`,
-          `Commande : **${project.orderId}**`,
-          `Étape : **${stage.label}**`,
-          `Progression : **${stage.progress}%**`,
-          `Responsable : ${project.claimedBy ? `<@${project.claimedBy}>` : 'Aucun'}`,
-          first ? '\nLe projet vient d’entrer dans cette étape.' : '\nLe projet vient de changer d’étape.'
+          `Projet : **${project.projectName}**`,
+          `Ancienne étape : **${oldStage.label}**`,
+          `Nouvelle étape : **${newStage.label}**`,
+          `Progression : **${newStage.progress}%**`,
+          '',
+          'La fiche de ton projet a également été mise à jour sur le serveur.'
         ].join('\n'),
-        0x5865F2
+        0x3498DB
       )
     ]
-  }).catch(() => {});
+  });
 }
 
-async function refreshBusinessDashboards(guild) {
-  const config = getGuildConfig(guild.id);
+async function refreshDashboards(guild) {
+  const config = getConfig(guild.id);
   const ops = migrateOperations();
 
   const quotes = Object.values(ops.quotes).filter(x => x.guildId === guild.id);
@@ -1034,19 +1016,25 @@ async function refreshBusinessDashboards(guild) {
   const sales = Object.values(ops.sales).filter(x => x.guildId === guild.id);
 
   const now = new Date();
-  const sameMonth = iso => {
-    const d = new Date(iso);
-    return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
-  };
 
-  const monthlySales = sales.filter(s => sameMonth(s.createdAt));
+  const monthlySales = sales.filter(s => {
+    const d = new Date(s.createdAt);
+    return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
+  });
+
   const monthlyRevenue = monthlySales.reduce((sum, s) => sum + Number(s.amount || 0), 0);
   const totalRevenue = sales.reduce((sum, s) => sum + Number(s.amount || 0), 0);
-  const acceptedQuotes = quotes.filter(q => q.status === 'Accepté par le client' || q.status === 'Transformé en commande').length;
-  const goal = Number(config.settings.monthlyGoal || 0);
-  const goalPct = goal > 0 ? Math.min(100, Math.round((monthlyRevenue / goal) * 100)) : 0;
 
-  const dynamic = {
+  const acceptedQuotes = quotes.filter(q =>
+    ['Accepté par le client', 'Transformé en commande'].includes(q.status)
+  ).length;
+
+  const goal = Number(config.settings.monthlyGoal || 0);
+  const goalPercent = goal > 0
+    ? Math.min(100, Math.round((monthlyRevenue / goal) * 100))
+    : 0;
+
+  const data = {
     statistiques_commerciales: [
       '📊 Statistiques commerciales',
       [
@@ -1054,7 +1042,6 @@ async function refreshBusinessDashboards(guild) {
         `Devis acceptés : **${acceptedQuotes}**`,
         `Commandes : **${orders.length}**`,
         `Ventes validées : **${sales.length}**`,
-        `Projets actifs : **${projects.filter(p => p.stageIndex < PROJECT_STAGES.length - 1).length}**`,
         `Taux d’acceptation des devis : **${quotes.length ? Math.round((acceptedQuotes / quotes.length) * 100) : 0}%**`
       ].join('\n'),
       0x9B59B6
@@ -1072,7 +1059,7 @@ async function refreshBusinessDashboards(guild) {
     objectifs: [
       '🎯 Objectif mensuel',
       goal > 0
-        ? `Objectif : **${goal.toFixed(2)} €**\nRéalisé : **${monthlyRevenue.toFixed(2)} €**\nProgression : **${goalPct}%**`
+        ? `Objectif : **${goal.toFixed(2)} €**\nRéalisé : **${monthlyRevenue.toFixed(2)} €**\nProgression : **${goalPercent}%**`
         : 'Aucun objectif mensuel configuré. Utilise `/config objectif`.',
       0xE91E63
     ],
@@ -1087,84 +1074,76 @@ async function refreshBusinessDashboards(guild) {
         `CA total : **${totalRevenue.toFixed(2)} €**`
       ].join('\n'),
       0x9B59B6
-    ],
-    liste_projets: [
-      '📋 Liste des projets',
-      projects.length
-        ? projects
-            .slice(-20)
-            .reverse()
-            .map(p => {
-              const stage = PROJECT_STAGES[p.stageIndex] || PROJECT_STAGES[0];
-              return `**${p.id}** — ${p.projectName} — ${stage.emoji} ${stage.label} (${stage.progress}%)`;
-            })
-            .join('\n')
-        : 'Aucun projet enregistré pour le moment.',
-      0x5865F2
     ]
   };
 
-  for (const [key, [title, description, color]] of Object.entries(dynamic)) {
-    const channelId = config.channels[key];
-    if (!channelId) continue;
-
-    const channel = guild.channels.cache.get(channelId);
+  for (const [key, [title, description, color]] of Object.entries(data)) {
+    const channel = guild.channels.cache.get(config.channels[key]);
     if (!channel || !channel.isTextBased()) continue;
 
-    const payload = {
-      embeds: [makeEmbed(title, description, color)],
-      components: []
-    };
+    const oldId = config.panels[key];
 
-    const panelId = config.panels[key];
-
-    if (panelId) {
+    if (oldId) {
       try {
-        const msg = await channel.messages.fetch(panelId);
-        await msg.edit(payload);
+        const message = await channel.messages.fetch(oldId);
+        await message.edit({
+          embeds: [makeEmbed(title, description, color)],
+          components: []
+        });
         continue;
       } catch {}
     }
 
-    const msg = await channel.send(payload);
-    updateGuildConfig(guild.id, 'panels', key, msg.id);
+    const message = await channel.send({
+      embeds: [makeEmbed(title, description, color)]
+    });
+
+    updateConfig(guild.id, 'panels', key, message.id);
   }
 }
 
-async function sendClientTracking(interaction, kind) {
+async function clientTracking(interaction, type) {
   const guildId = interaction.guild?.id;
+
   if (!guildId) {
     return interaction.reply({
-      content: '❌ Cette fonction doit être utilisée depuis le serveur.',
+      content: '❌ Utilise cette fonction depuis le serveur.',
       flags: MessageFlags.Ephemeral
     });
   }
 
   const ops = migrateOperations();
+
   let items = [];
 
-  if (kind === 'quotes') {
-    items = Object.values(ops.quotes).filter(x => x.guildId === guildId && x.userId === interaction.user.id);
-  } else if (kind === 'orders') {
-    items = Object.values(ops.orders).filter(x => x.guildId === guildId && x.userId === interaction.user.id);
+  if (type === 'quotes') {
+    items = Object.values(ops.quotes).filter(x =>
+      x.guildId === guildId && x.userId === interaction.user.id
+    );
+  } else if (type === 'orders') {
+    items = Object.values(ops.orders).filter(x =>
+      x.guildId === guildId && x.userId === interaction.user.id
+    );
   } else {
-    items = Object.values(ops.projects).filter(x => x.guildId === guildId && x.userId === interaction.user.id);
+    items = Object.values(ops.projects).filter(x =>
+      x.guildId === guildId && x.userId === interaction.user.id
+    );
   }
 
   if (!items.length) {
     return interaction.reply({
-      content: `Aucun ${kind === 'quotes' ? 'devis' : kind === 'orders' ? 'commande' : 'projet'} enregistré pour toi.`,
+      content: 'Aucun élément enregistré pour toi.',
       flags: MessageFlags.Ephemeral
     });
   }
 
   let description = '';
 
-  if (kind === 'quotes') {
+  if (type === 'quotes') {
     description = items.slice(-10).reverse().map(q =>
-      `**${q.id} — ${q.projectName}**\nStatut : ${q.status}\nPrix : ${q.price !== null ? `${q.price} €` : 'À définir'}`
+      `**${q.id} — ${q.projectName}**\nStatut : ${q.status}\nPrix : ${q.price !== null ? `${Number(q.price).toFixed(2)} €` : 'À définir'}`
     ).join('\n\n');
-  } else if (kind === 'orders') {
+  } else if (type === 'orders') {
     description = items.slice(-10).reverse().map(o =>
       `**${o.id} — ${o.projectName}**\nStatut : ${o.status}\nPaiement : ${o.paymentStatus}\nProjet : ${o.projectId || 'Pas encore créé'}`
     ).join('\n\n');
@@ -1178,7 +1157,7 @@ async function sendClientTracking(interaction, kind) {
   return interaction.reply({
     embeds: [
       makeEmbed(
-        kind === 'quotes' ? '💰 Mes devis' : kind === 'orders' ? '📦 Mes commandes' : '🚀 Mes projets',
+        type === 'quotes' ? '💰 Mes devis' : type === 'orders' ? '📦 Mes commandes' : '🚀 Mes projets',
         description,
         0x3498DB
       )
@@ -1253,7 +1232,7 @@ const commands = [
     .addSubcommand(sub =>
       sub
         .setName('voir')
-        .setDescription('Affiche un résumé de la configuration actuelle.')
+        .setDescription('Affiche un résumé de la configuration.')
     ),
 
   new SlashCommandBuilder()
@@ -1278,18 +1257,18 @@ client.once(Events.ClientReady, async readyClient => {
 
   for (const guild of readyClient.guilds.cache.values()) {
     try {
-      migrateGuildConfig(guild.id);
+      migrateConfig(guild.id);
       await guild.commands.set(commands);
-      await refreshBusinessDashboards(guild).catch(() => {});
+      await refreshDashboards(guild).catch(() => {});
       console.log(`✅ Commandes slash installées sur ${guild.name}`);
     } catch (error) {
-      console.error('❌ Erreur démarrage serveur :', error);
+      console.error('❌ Erreur démarrage :', error);
     }
   }
 });
 
 client.on(Events.GuildMemberAdd, async member => {
-  const config = getGuildConfig(member.guild.id);
+  const config = getConfig(member.guild.id);
 
   if (config.roles.nouveau) {
     await member.roles.add(config.roles.nouveau).catch(() => {});
@@ -1319,7 +1298,7 @@ client.on(Events.GuildMemberAdd, async member => {
 });
 
 client.on(Events.GuildMemberRemove, async member => {
-  const config = getGuildConfig(member.guild.id);
+  const config = getConfig(member.guild.id);
   const channel = member.guild.channels.cache.get(config.channels.depart);
 
   if (!channel || !channel.isTextBased()) return;
@@ -1378,15 +1357,15 @@ client.on(Events.InteractionCreate, async interaction => {
 
     if (interaction.isChatInputCommand()) {
       if (interaction.commandName === 'suivi') {
-        const row = new ActionRowBuilder().addComponents(
-          new ButtonBuilder().setCustomId('my_quotes').setLabel('Mes devis').setStyle(ButtonStyle.Secondary),
-          new ButtonBuilder().setCustomId('my_orders').setLabel('Mes commandes').setStyle(ButtonStyle.Primary),
-          new ButtonBuilder().setCustomId('my_projects').setLabel('Mes projets').setStyle(ButtonStyle.Success)
-        );
-
         return interaction.reply({
           content: 'Choisis ce que tu veux consulter :',
-          components: [row],
+          components: [
+            new ActionRowBuilder().addComponents(
+              new ButtonBuilder().setCustomId('my_quotes').setLabel('Mes devis').setStyle(ButtonStyle.Secondary),
+              new ButtonBuilder().setCustomId('my_orders').setLabel('Mes commandes').setStyle(ButtonStyle.Primary),
+              new ButtonBuilder().setCustomId('my_projects').setLabel('Mes projets').setStyle(ButtonStyle.Success)
+            )
+          ],
           flags: MessageFlags.Ephemeral
         });
       }
@@ -1407,10 +1386,7 @@ client.on(Events.InteractionCreate, async interaction => {
           const [sectionType, key] = rawType.split(':');
 
           if (!['channel', 'category'].includes(sectionType)) {
-            return interaction.reply({
-              content: '❌ Type invalide.',
-              flags: MessageFlags.Ephemeral
-            });
+            return interaction.reply({ content: '❌ Type invalide.', flags: MessageFlags.Ephemeral });
           }
 
           if (sectionType === 'category' && target.type !== ChannelType.GuildCategory) {
@@ -1427,7 +1403,7 @@ client.on(Events.InteractionCreate, async interaction => {
             });
           }
 
-          updateGuildConfig(
+          updateConfig(
             interaction.guild.id,
             sectionType === 'channel' ? 'channels' : 'categories',
             key,
@@ -1457,7 +1433,7 @@ client.on(Events.InteractionCreate, async interaction => {
           const key = interaction.options.getString('type');
           const role = interaction.options.getRole('role');
 
-          updateGuildConfig(interaction.guild.id, 'roles', key, role.id);
+          updateConfig(interaction.guild.id, 'roles', key, role.id);
 
           return interaction.reply({
             content: `✅ Rôle configuré : **${key}** → ${role}`,
@@ -1475,7 +1451,7 @@ client.on(Events.InteractionCreate, async interaction => {
             });
           }
 
-          updateGuildConfig(interaction.guild.id, 'settings', 'paypalUrl', paypal);
+          updateConfig(interaction.guild.id, 'settings', 'paypalUrl', paypal);
 
           return interaction.reply({
             content: '✅ Lien PayPal officiel enregistré. Les anciennes configurations sont conservées.',
@@ -1485,9 +1461,8 @@ client.on(Events.InteractionCreate, async interaction => {
 
         if (sub === 'objectif') {
           const amount = interaction.options.getNumber('montant');
-          updateGuildConfig(interaction.guild.id, 'settings', 'monthlyGoal', amount);
-
-          await refreshBusinessDashboards(interaction.guild);
+          updateConfig(interaction.guild.id, 'settings', 'monthlyGoal', amount);
+          await refreshDashboards(interaction.guild);
 
           return interaction.reply({
             content: `✅ Objectif mensuel fixé à **${amount.toFixed(2)} €**.`,
@@ -1496,7 +1471,7 @@ client.on(Events.InteractionCreate, async interaction => {
         }
 
         if (sub === 'voir') {
-          const config = getGuildConfig(interaction.guild.id);
+          const config = getConfig(interaction.guild.id);
 
           return interaction.reply({
             embeds: [
@@ -1509,7 +1484,7 @@ client.on(Events.InteractionCreate, async interaction => {
                   `PayPal : **${config.settings.paypalUrl ? 'Configuré' : 'Non configuré'}**`,
                   `Objectif mensuel : **${Number(config.settings.monthlyGoal || 0).toFixed(2)} €**`,
                   '',
-                  'Aucune configuration existante n’est supprimée automatiquement.'
+                  'Les anciennes configurations sont conservées automatiquement.'
                 ].join('\n')
               )
             ],
@@ -1528,18 +1503,19 @@ client.on(Events.InteractionCreate, async interaction => {
 
         await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
-        const config = getGuildConfig(interaction.guild.id);
+        const config = getConfig(interaction.guild.id);
         let success = 0;
         let failed = 0;
 
         for (const key of Object.keys(config.channels)) {
           if (!PANEL_DEFINITIONS[key]) continue;
+
           const result = await installOrUpdatePanel(interaction.guild, key);
           if (result.success) success++;
           else failed++;
         }
 
-        await refreshBusinessDashboards(interaction.guild).catch(() => {});
+        await refreshDashboards(interaction.guild).catch(() => {});
 
         return interaction.editReply(
           `✅ Vérification terminée.\n` +
@@ -1552,7 +1528,7 @@ client.on(Events.InteractionCreate, async interaction => {
 
     if (interaction.isButton()) {
       if (interaction.customId === 'accept_rules') {
-        const config = getGuildConfig(interaction.guild.id);
+        const config = getConfig(interaction.guild.id);
 
         if (!config.roles.membre) {
           return interaction.reply({
@@ -1614,6 +1590,7 @@ client.on(Events.InteractionCreate, async interaction => {
 
       if (interaction.customId === 'order_request') {
         const guildId = interaction.guild.id;
+
         const sent = await dmUser(interaction.user.id, {
           embeds: [
             makeEmbed(
@@ -1638,23 +1615,10 @@ client.on(Events.InteractionCreate, async interaction => {
           });
         }
 
-        const modal = new ModalBuilder()
-          .setCustomId(`order_request_modal:${guildId}`)
-          .setTitle('Nouvelle commande');
-
-        modal.addComponents(
-          new ActionRowBuilder().addComponents(
-            new TextInputBuilder().setCustomId('project_name').setLabel('Nom du bot / projet').setStyle(TextInputStyle.Short).setRequired(true)
-          ),
-          new ActionRowBuilder().addComponents(
-            new TextInputBuilder().setCustomId('service').setLabel('Service souhaité').setStyle(TextInputStyle.Short).setRequired(true)
-          ),
-          new ActionRowBuilder().addComponents(
-            new TextInputBuilder().setCustomId('description').setLabel('Que veux-tu exactement ?').setStyle(TextInputStyle.Paragraph).setRequired(true).setMaxLength(1500)
-          )
-        );
-
-        return interaction.showModal(modal);
+        return interaction.reply({
+          content: '❌ Impossible de t’envoyer un MP. Active tes messages privés pour ce serveur puis réessaie.',
+          flags: MessageFlags.Ephemeral
+        });
       }
 
       if (interaction.customId.startsWith('order_request_dm:')) {
@@ -1679,13 +1643,13 @@ client.on(Events.InteractionCreate, async interaction => {
         return interaction.showModal(modal);
       }
 
-      if (interaction.customId === 'my_quotes') return sendClientTracking(interaction, 'quotes');
-      if (interaction.customId === 'my_orders') return sendClientTracking(interaction, 'orders');
-      if (interaction.customId === 'my_projects') return sendClientTracking(interaction, 'projects');
+      if (interaction.customId === 'my_quotes') return clientTracking(interaction, 'quotes');
+      if (interaction.customId === 'my_orders') return clientTracking(interaction, 'orders');
+      if (interaction.customId === 'my_projects') return clientTracking(interaction, 'projects');
 
       if (interaction.customId === 'declare_payment') {
         const modal = new ModalBuilder()
-          .setCustomId('declare_payment_modal')
+          .setCustomId('declare_payment_manual_modal')
           .setTitle('Déclarer un paiement');
 
         modal.addComponents(
@@ -1707,111 +1671,14 @@ client.on(Events.InteractionCreate, async interaction => {
         });
       }
 
-      if (interaction.customId.startsWith('ticket_claim:')) {
-        const id = interaction.customId.split(':')[1];
-        const ops = migrateOperations();
-        const ticket = ops.tickets[id];
-
-        if (!ticket) return interaction.reply({ content: '❌ Ticket introuvable.', flags: MessageFlags.Ephemeral });
-
-        const config = getGuildConfig(ticket.guildId);
-        if (!hasStaffAccess(interaction.member, config)) {
-          return interaction.reply({ content: '❌ Réservé au personnel.', flags: MessageFlags.Ephemeral });
-        }
-
-        ticket.claimedBy = interaction.user.id;
-        ops.tickets[id] = ticket;
-        saveJson(OPS_FILE, ops);
-
-        return interaction.reply({ content: `👤 Ticket pris en charge par ${interaction.user}.` });
-      }
-
-      if (interaction.customId.startsWith('ticket_quote:')) {
-        const id = interaction.customId.split(':')[1];
-        const ops = migrateOperations();
-        const ticket = ops.tickets[id];
-
-        if (!ticket) return interaction.reply({ content: '❌ Ticket introuvable.', flags: MessageFlags.Ephemeral });
-
-        const config = getGuildConfig(ticket.guildId);
-        if (!hasStaffAccess(interaction.member, config)) {
-          return interaction.reply({ content: '❌ Réservé au personnel.', flags: MessageFlags.Ephemeral });
-        }
-
-        const modal = new ModalBuilder()
-          .setCustomId(`ticket_quote_modal:${id}`)
-          .setTitle('Créer un devis');
-
-        modal.addComponents(
-          new ActionRowBuilder().addComponents(
-            new TextInputBuilder().setCustomId('project_name').setLabel('Nom du bot / projet').setStyle(TextInputStyle.Short).setRequired(true)
-          ),
-          new ActionRowBuilder().addComponents(
-            new TextInputBuilder().setCustomId('service').setLabel('Service').setStyle(TextInputStyle.Short).setRequired(true)
-          ),
-          new ActionRowBuilder().addComponents(
-            new TextInputBuilder().setCustomId('description').setLabel('Description').setStyle(TextInputStyle.Paragraph).setRequired(true)
-          )
-        );
-
-        return interaction.showModal(modal);
-      }
-
-      if (interaction.customId.startsWith('ticket_contact:')) {
-        const id = interaction.customId.split(':')[1];
-        const ops = migrateOperations();
-        const ticket = ops.tickets[id];
-        if (!ticket) return interaction.reply({ content: '❌ Ticket introuvable.', flags: MessageFlags.Ephemeral });
-
-        const config = getGuildConfig(ticket.guildId);
-        if (!hasStaffAccess(interaction.member, config)) {
-          return interaction.reply({ content: '❌ Réservé au personnel.', flags: MessageFlags.Ephemeral });
-        }
-
-        const modal = new ModalBuilder()
-          .setCustomId(`contact_ticket_modal:${id}`)
-          .setTitle('Contacter le client');
-
-        modal.addComponents(
-          new ActionRowBuilder().addComponents(
-            new TextInputBuilder().setCustomId('message').setLabel('Message à envoyer en MP').setStyle(TextInputStyle.Paragraph).setRequired(true).setMaxLength(1500)
-          )
-        );
-
-        return interaction.showModal(modal);
-      }
-
-      if (interaction.customId.startsWith('ticket_close:')) {
-        const id = interaction.customId.split(':')[1];
-        const ops = migrateOperations();
-        const ticket = ops.tickets[id];
-        if (!ticket) return interaction.reply({ content: '❌ Ticket introuvable.', flags: MessageFlags.Ephemeral });
-
-        ticket.status = 'Fermé';
-        ops.tickets[id] = ticket;
-        saveJson(OPS_FILE, ops);
-
-        await interaction.channel.permissionOverwrites.edit(ticket.userId, { SendMessages: false }).catch(() => {});
-
-        return interaction.update({
-          embeds: [
-            makeEmbed(
-              `🔒 ${id} fermé`,
-              `Le ticket a été fermé par ${interaction.user}.\nLes données restent enregistrées.`,
-              0x95A5A6
-            )
-          ],
-          components: []
-        });
-      }
-
       if (interaction.customId.startsWith('quote_claim:')) {
         const id = interaction.customId.split(':')[1];
         const ops = migrateOperations();
         const quote = ops.quotes[id];
+
         if (!quote) return interaction.reply({ content: '❌ Devis introuvable.', flags: MessageFlags.Ephemeral });
 
-        const config = getGuildConfig(quote.guildId);
+        const config = getConfig(quote.guildId);
         if (!hasStaffAccess(interaction.member, config)) {
           return interaction.reply({ content: '❌ Réservé au personnel.', flags: MessageFlags.Ephemeral });
         }
@@ -1819,21 +1686,15 @@ client.on(Events.InteractionCreate, async interaction => {
         quote.claimedBy = interaction.user.id;
         ops.quotes[id] = quote;
         saveJson(OPS_FILE, ops);
-        await refreshQuoteMessage(interaction.guild, quote);
+        audit(quote.guildId, 'quote', id, 'Devis pris en charge', interaction.user.id);
+
+        await refreshQuoteCard(interaction.guild, quote);
 
         return interaction.reply({ content: `👤 Devis **${id}** pris en charge par ${interaction.user}.` });
       }
 
       if (interaction.customId.startsWith('quote_price:')) {
         const id = interaction.customId.split(':')[1];
-        const ops = migrateOperations();
-        const quote = ops.quotes[id];
-        if (!quote) return interaction.reply({ content: '❌ Devis introuvable.', flags: MessageFlags.Ephemeral });
-
-        const config = getGuildConfig(quote.guildId);
-        if (!hasStaffAccess(interaction.member, config)) {
-          return interaction.reply({ content: '❌ Réservé au personnel.', flags: MessageFlags.Ephemeral });
-        }
 
         const modal = new ModalBuilder()
           .setCustomId(`quote_price_modal:${id}`)
@@ -1852,22 +1713,21 @@ client.on(Events.InteractionCreate, async interaction => {
         const id = interaction.customId.split(':')[1];
         const ops = migrateOperations();
         const quote = ops.quotes[id];
+
         if (!quote) return interaction.reply({ content: '❌ Devis introuvable.', flags: MessageFlags.Ephemeral });
 
-        const config = getGuildConfig(quote.guildId);
-        if (!hasStaffAccess(interaction.member, config)) {
-          return interaction.reply({ content: '❌ Réservé au personnel.', flags: MessageFlags.Ephemeral });
-        }
-
         if (quote.price === null) {
-          return interaction.reply({ content: '❌ Définis d’abord le prix du devis.', flags: MessageFlags.Ephemeral });
+          return interaction.reply({
+            content: '❌ Définis d’abord le prix du devis.',
+            flags: MessageFlags.Ephemeral
+          });
         }
 
         const sent = await dmUser(quote.userId, {
           embeds: [
             makeEmbed(
               `💰 Proposition de devis — ${id}`,
-              `Projet : **${quote.projectName}**\nService : **${quote.service}**\nPrix : **${quote.price} €**\n\nChoisis une réponse ci-dessous.`,
+              `Projet : **${quote.projectName}**\nService : **${quote.service}**\nPrix : **${Number(quote.price).toFixed(2)} €**\n\nChoisis une réponse ci-dessous.`,
               0xF1C40F
             )
           ],
@@ -1879,17 +1739,22 @@ client.on(Events.InteractionCreate, async interaction => {
           ]
         });
 
-        if (sent) {
-          quote.status = 'Envoyé au client';
-          ops.quotes[id] = quote;
-          saveJson(OPS_FILE, ops);
-          await refreshQuoteMessage(interaction.guild, quote);
-          await refreshBusinessDashboards(interaction.guild);
-
-          return interaction.reply({ content: '✅ Devis envoyé au client en message privé.' });
+        if (!sent) {
+          return interaction.reply({
+            content: '❌ Impossible d’envoyer un MP au client.',
+            flags: MessageFlags.Ephemeral
+          });
         }
 
-        return interaction.reply({ content: '❌ Impossible d’envoyer un MP au client.', flags: MessageFlags.Ephemeral });
+        quote.status = 'Envoyé au client';
+        ops.quotes[id] = quote;
+        saveJson(OPS_FILE, ops);
+        audit(quote.guildId, 'quote', id, 'Devis envoyé au client', interaction.user.id);
+
+        await refreshQuoteCard(interaction.guild, quote);
+        await refreshDashboards(interaction.guild);
+
+        return interaction.reply({ content: '✅ Devis envoyé au client en message privé.' });
       }
 
       if (interaction.customId.startsWith('client_quote_accept:')) {
@@ -1904,16 +1769,17 @@ client.on(Events.InteractionCreate, async interaction => {
         quote.status = 'Accepté par le client';
         ops.quotes[id] = quote;
         saveJson(OPS_FILE, ops);
+        audit(quote.guildId, 'quote', id, 'Devis accepté par le client', interaction.user.id);
 
         const guild = await client.guilds.fetch(quote.guildId);
-        await refreshQuoteMessage(guild, quote).catch(() => {});
-        await refreshBusinessDashboards(guild).catch(() => {});
+        await refreshQuoteCard(guild, quote).catch(() => {});
+        await refreshDashboards(guild).catch(() => {});
 
         return interaction.update({
           embeds: [
             makeEmbed(
               `✅ Devis ${id} accepté`,
-              `Tu as accepté le devis pour **${quote.projectName}** au prix de **${quote.price} €**.\nL’équipe peut maintenant transformer ce devis en commande.`,
+              `Tu as accepté le devis pour **${quote.projectName}** au prix de **${Number(quote.price).toFixed(2)} €**.\nL’équipe peut maintenant transformer ce devis en commande.`,
               0x57F287
             )
           ],
@@ -1930,22 +1796,17 @@ client.on(Events.InteractionCreate, async interaction => {
           return interaction.reply({ content: '❌ Ce devis ne t’appartient pas.', flags: MessageFlags.Ephemeral });
         }
 
-        quote.status = 'Refusé';
+        quote.status = 'Refusé par le client';
         ops.quotes[id] = quote;
         saveJson(OPS_FILE, ops);
+        audit(quote.guildId, 'quote', id, 'Devis refusé par le client', interaction.user.id);
 
         const guild = await client.guilds.fetch(quote.guildId);
-        await refreshQuoteMessage(guild, quote).catch(() => {});
-        await refreshBusinessDashboards(guild).catch(() => {});
+        await refreshQuoteCard(guild, quote).catch(() => {});
+        await refreshDashboards(guild).catch(() => {});
 
         return interaction.update({
-          embeds: [
-            makeEmbed(
-              `❌ Devis ${id} refusé`,
-              'Le devis a été refusé. Tu peux contacter le support pour en discuter.',
-              0xED4245
-            )
-          ],
+          embeds: [makeEmbed(`❌ Devis ${id} refusé`, 'Le devis a été refusé.', 0xED4245)],
           components: []
         });
       }
@@ -1954,19 +1815,21 @@ client.on(Events.InteractionCreate, async interaction => {
         const id = interaction.customId.split(':')[1];
         const ops = migrateOperations();
         const quote = ops.quotes[id];
+
         if (!quote) return interaction.reply({ content: '❌ Devis introuvable.', flags: MessageFlags.Ephemeral });
 
-        const config = getGuildConfig(quote.guildId);
-        if (!hasStaffAccess(interaction.member, config)) {
-          return interaction.reply({ content: '❌ Réservé au personnel.', flags: MessageFlags.Ephemeral });
-        }
-
         if (quote.status !== 'Accepté par le client') {
-          return interaction.reply({ content: '❌ Le client doit d’abord accepter le devis.', flags: MessageFlags.Ephemeral });
+          return interaction.reply({
+            content: '❌ Le client doit d’abord accepter le devis.',
+            flags: MessageFlags.Ephemeral
+          });
         }
 
         if (quote.orderId) {
-          return interaction.reply({ content: `❌ Ce devis est déjà lié à **${quote.orderId}**.`, flags: MessageFlags.Ephemeral });
+          return interaction.reply({
+            content: `❌ Ce devis est déjà lié à **${quote.orderId}**.`,
+            flags: MessageFlags.Ephemeral
+          });
         }
 
         const order = await createOrder(
@@ -1979,19 +1842,13 @@ client.on(Events.InteractionCreate, async interaction => {
           quote.id
         );
 
-        const latest = migrateOperations();
-        if (latest.quotes[id]) {
-          await refreshQuoteMessage(interaction.guild, latest.quotes[id]);
-        }
-
-        return interaction.reply({ content: `✅ Commande **${order.id}** créée à partir du devis **${id}**.` });
+        return interaction.reply({
+          content: `✅ Commande **${order.id}** créée à partir du devis **${id}**.`
+        });
       }
 
       if (interaction.customId.startsWith('quote_contact:')) {
         const id = interaction.customId.split(':')[1];
-        const ops = migrateOperations();
-        const quote = ops.quotes[id];
-        if (!quote) return interaction.reply({ content: '❌ Devis introuvable.', flags: MessageFlags.Ephemeral });
 
         const modal = new ModalBuilder()
           .setCustomId(`contact_quote_modal:${id}`)
@@ -2010,14 +1867,20 @@ client.on(Events.InteractionCreate, async interaction => {
         const id = interaction.customId.split(':')[1];
         const ops = migrateOperations();
         const quote = ops.quotes[id];
+
         if (!quote) return interaction.reply({ content: '❌ Devis introuvable.', flags: MessageFlags.Ephemeral });
 
         quote.status = 'Refusé';
         ops.quotes[id] = quote;
         saveJson(OPS_FILE, ops);
-        await refreshQuoteMessage(interaction.guild, quote);
-        await refreshBusinessDashboards(interaction.guild);
-        await dmUser(quote.userId, { embeds: [makeEmbed(`❌ Devis ${id} refusé`, 'L’équipe n’a pas retenu cette demande de devis.', 0xED4245)] });
+        audit(quote.guildId, 'quote', id, 'Devis refusé par le personnel', interaction.user.id);
+
+        await refreshQuoteCard(interaction.guild, quote);
+        await refreshDashboards(interaction.guild);
+
+        await dmUser(quote.userId, {
+          embeds: [makeEmbed(`❌ Devis ${id} refusé`, 'L’équipe n’a pas retenu cette demande de devis.', 0xED4245)]
+        });
 
         return interaction.reply({ content: `❌ Devis **${id}** refusé.` });
       }
@@ -2026,27 +1889,33 @@ client.on(Events.InteractionCreate, async interaction => {
         const id = interaction.customId.split(':')[1];
         const ops = migrateOperations();
         const quote = ops.quotes[id];
+
         if (!quote) return interaction.reply({ content: '❌ Devis introuvable.', flags: MessageFlags.Ephemeral });
 
         quote.status = 'Archivé';
         ops.quotes[id] = quote;
         saveJson(OPS_FILE, ops);
-        await refreshQuoteMessage(interaction.guild, quote);
-        await refreshBusinessDashboards(interaction.guild);
+        audit(quote.guildId, 'quote', id, 'Devis archivé', interaction.user.id);
 
-        return interaction.reply({ content: `📁 Devis **${id}** archivé. Aucune donnée supprimée.` });
+        await refreshQuoteCard(interaction.guild, quote);
+        await refreshDashboards(interaction.guild);
+
+        return interaction.reply({ content: `📁 Devis **${id}** archivé. Les données sont conservées.` });
       }
 
       if (interaction.customId.startsWith('order_claim:')) {
         const id = interaction.customId.split(':')[1];
         const ops = migrateOperations();
         const order = ops.orders[id];
+
         if (!order) return interaction.reply({ content: '❌ Commande introuvable.', flags: MessageFlags.Ephemeral });
 
         order.claimedBy = interaction.user.id;
         ops.orders[id] = order;
         saveJson(OPS_FILE, ops);
-        await refreshOrderMessage(interaction.guild, order);
+        audit(order.guildId, 'order', id, 'Commande prise en charge', interaction.user.id);
+
+        await refreshOrderCard(interaction.guild, order);
 
         return interaction.reply({ content: `👤 Commande **${id}** prise en charge par ${interaction.user}.` });
       }
@@ -2055,29 +1924,50 @@ client.on(Events.InteractionCreate, async interaction => {
         const id = interaction.customId.split(':')[1];
         const ops = migrateOperations();
         const order = ops.orders[id];
+
         if (!order) return interaction.reply({ content: '❌ Commande introuvable.', flags: MessageFlags.Ephemeral });
 
         order.status = 'Acceptée';
         ops.orders[id] = order;
         saveJson(OPS_FILE, ops);
-        await refreshOrderMessage(interaction.guild, order);
-        await refreshBusinessDashboards(interaction.guild);
+        audit(order.guildId, 'order', id, 'Commande acceptée', interaction.user.id);
 
-        return interaction.reply({ content: `✅ Commande **${id}** acceptée. Tu peux maintenant envoyer le paiement au client.` });
+        await refreshOrderCard(interaction.guild, order);
+        await refreshDashboards(interaction.guild);
+
+        await dmUser(order.userId, {
+          embeds: [
+            makeEmbed(
+              `✅ Commande ${id} acceptée`,
+              `Ta commande **${order.projectName}** a été acceptée par notre équipe.\nLe lien de paiement officiel va pouvoir t’être envoyé.`,
+              0x57F287
+            )
+          ]
+        });
+
+        return interaction.reply({
+          content: `✅ Commande **${id}** acceptée. Tu peux maintenant envoyer le paiement.`
+        });
       }
 
       if (interaction.customId.startsWith('order_refuse:')) {
         const id = interaction.customId.split(':')[1];
         const ops = migrateOperations();
         const order = ops.orders[id];
+
         if (!order) return interaction.reply({ content: '❌ Commande introuvable.', flags: MessageFlags.Ephemeral });
 
         order.status = 'Refusée';
         ops.orders[id] = order;
         saveJson(OPS_FILE, ops);
-        await refreshOrderMessage(interaction.guild, order);
-        await refreshBusinessDashboards(interaction.guild);
-        await dmUser(order.userId, { embeds: [makeEmbed(`❌ Commande ${id} refusée`, 'L’équipe n’a pas accepté cette demande de commande.', 0xED4245)] });
+        audit(order.guildId, 'order', id, 'Commande refusée', interaction.user.id);
+
+        await refreshOrderCard(interaction.guild, order);
+        await refreshDashboards(interaction.guild);
+
+        await dmUser(order.userId, {
+          embeds: [makeEmbed(`❌ Commande ${id} refusée`, 'L’équipe n’a pas accepté cette demande de commande.', 0xED4245)]
+        });
 
         return interaction.reply({ content: `❌ Commande **${id}** refusée.` });
       }
@@ -2086,9 +1976,11 @@ client.on(Events.InteractionCreate, async interaction => {
         const id = interaction.customId.split(':')[1];
         const ops = migrateOperations();
         const order = ops.orders[id];
+
         if (!order) return interaction.reply({ content: '❌ Commande introuvable.', flags: MessageFlags.Ephemeral });
 
-        const config = getGuildConfig(order.guildId);
+        const config = getConfig(order.guildId);
+
         if (!config.settings.paypalUrl) {
           return interaction.reply({
             content: '❌ Aucun lien PayPal n’est configuré. Utilise `/config paiement`.',
@@ -2102,34 +1994,36 @@ client.on(Events.InteractionCreate, async interaction => {
               `💳 Paiement de la commande ${id}`,
               [
                 `Projet : **${order.projectName}**`,
-                `Montant : **${order.price !== null ? `${order.price} €` : 'À confirmer'}**`,
+                `Montant : **${order.price !== null ? `${Number(order.price).toFixed(2)} €` : 'À confirmer'}**`,
                 '',
-                'Utilise le lien officiel ci-dessous pour effectuer le paiement :',
+                'Lien de paiement officiel :',
                 config.settings.paypalUrl,
                 '',
-                'Après paiement, clique sur le bouton ci-dessous pour déclarer le paiement.'
+                'Après paiement, clique sur **J’ai payé** pour envoyer ta déclaration au personnel.'
               ].join('\n'),
               0x2ECC71
             )
           ],
           components: [
             new ActionRowBuilder().addComponents(
-              new ButtonBuilder()
-                .setCustomId(`declare_payment_order:${id}`)
-                .setLabel('J’ai payé')
-                .setStyle(ButtonStyle.Success)
+              new ButtonBuilder().setCustomId(`declare_payment_order:${id}`).setLabel('J’ai payé').setStyle(ButtonStyle.Success)
             )
           ]
         });
 
         if (!sent) {
-          return interaction.reply({ content: '❌ Impossible d’envoyer un MP au client.', flags: MessageFlags.Ephemeral });
+          return interaction.reply({
+            content: '❌ Impossible d’envoyer un MP au client.',
+            flags: MessageFlags.Ephemeral
+          });
         }
 
         order.paymentStatus = 'Lien envoyé';
         ops.orders[id] = order;
         saveJson(OPS_FILE, ops);
-        await refreshOrderMessage(interaction.guild, order);
+        audit(order.guildId, 'order', id, 'Lien de paiement envoyé', interaction.user.id);
+
+        await refreshOrderCard(interaction.guild, order);
 
         return interaction.reply({ content: '✅ Lien PayPal envoyé au client en message privé.' });
       }
@@ -2170,39 +2064,48 @@ client.on(Events.InteractionCreate, async interaction => {
         const id = interaction.customId.split(':')[1];
         const ops = migrateOperations();
         const order = ops.orders[id];
+
         if (!order) return interaction.reply({ content: '❌ Commande introuvable.', flags: MessageFlags.Ephemeral });
 
         order.status = 'Archivée';
         ops.orders[id] = order;
         saveJson(OPS_FILE, ops);
-        await refreshOrderMessage(interaction.guild, order);
-        await refreshBusinessDashboards(interaction.guild);
+        audit(order.guildId, 'order', id, 'Commande archivée', interaction.user.id);
 
-        return interaction.reply({ content: `📁 Commande **${id}** archivée. Aucune donnée supprimée.` });
+        await refreshOrderCard(interaction.guild, order);
+        await refreshDashboards(interaction.guild);
+
+        return interaction.reply({ content: `📁 Commande **${id}** archivée. Les données sont conservées.` });
       }
 
       if (interaction.customId.startsWith('payment_accept:')) {
         const id = interaction.customId.split(':')[1];
         const ops = migrateOperations();
         const payment = ops.payments[id];
+
         if (!payment) return interaction.reply({ content: '❌ Paiement introuvable.', flags: MessageFlags.Ephemeral });
 
-        const config = getGuildConfig(payment.guildId);
+        const config = getConfig(payment.guildId);
+
         if (!hasStaffAccess(interaction.member, config)) {
           return interaction.reply({ content: '❌ Réservé au personnel.', flags: MessageFlags.Ephemeral });
         }
 
-        payment.status = 'Validé';
-
         const order = ops.orders[payment.orderId];
-        if (!order) return interaction.reply({ content: '❌ Commande liée introuvable.', flags: MessageFlags.Ephemeral });
 
+        if (!order) {
+          return interaction.reply({ content: '❌ Commande liée introuvable.', flags: MessageFlags.Ephemeral });
+        }
+
+        payment.status = 'Validé';
         order.paymentStatus = 'Validé';
-        ops.orders[order.id] = order;
+
         ops.payments[id] = payment;
+        ops.orders[order.id] = order;
 
         const saleId = nextId('sales', 'VENTE');
         const latest = migrateOperations();
+
         latest.sales[saleId] = {
           id: saleId,
           guildId: interaction.guild.id,
@@ -2212,15 +2115,27 @@ client.on(Events.InteractionCreate, async interaction => {
           amount: Number(order.price || 0),
           createdAt: new Date().toISOString()
         };
-        latest.orders[order.id] = order;
+
         latest.payments[id] = payment;
+        latest.orders[order.id] = order;
+
         saveJson(OPS_FILE, latest);
 
+        audit(order.guildId, 'payment', id, 'Paiement validé', interaction.user.id);
+        audit(order.guildId, 'sale', saleId, 'Vente enregistrée', interaction.user.id);
+
         const member = await interaction.guild.members.fetch(order.userId).catch(() => null);
-        if (member && config.roles.client) await member.roles.add(config.roles.client).catch(() => {});
-        if (member && config.roles.prospect) await member.roles.remove(config.roles.prospect).catch(() => {});
+
+        if (member && config.roles.client) {
+          await member.roles.add(config.roles.client).catch(() => {});
+        }
+
+        if (member && config.roles.prospect) {
+          await member.roles.remove(config.roles.prospect).catch(() => {});
+        }
 
         const salesChannel = interaction.guild.channels.cache.get(config.channels.ventes);
+
         if (salesChannel && salesChannel.isTextBased()) {
           await salesChannel.send({
             embeds: [
@@ -2236,13 +2151,14 @@ client.on(Events.InteractionCreate, async interaction => {
         const project = await createProjectFromOrder(interaction.guild, order);
 
         const refreshed = migrateOperations();
+
         if (refreshed.orders[order.id]) {
           refreshed.orders[order.id].projectId = project.id;
           saveJson(OPS_FILE, refreshed);
-          await refreshOrderMessage(interaction.guild, refreshed.orders[order.id]);
+          await refreshOrderCard(interaction.guild, refreshed.orders[order.id]);
         }
 
-        await refreshBusinessDashboards(interaction.guild);
+        await refreshDashboards(interaction.guild);
 
         return interaction.update({
           embeds: [
@@ -2260,14 +2176,23 @@ client.on(Events.InteractionCreate, async interaction => {
         const id = interaction.customId.split(':')[1];
         const ops = migrateOperations();
         const payment = ops.payments[id];
+
         if (!payment) return interaction.reply({ content: '❌ Paiement introuvable.', flags: MessageFlags.Ephemeral });
 
         payment.status = 'Refusé';
         ops.payments[id] = payment;
         saveJson(OPS_FILE, ops);
 
+        audit(payment.guildId, 'payment', id, 'Paiement refusé', interaction.user.id);
+
         await dmUser(payment.userId, {
-          embeds: [makeEmbed(`❌ Paiement ${id} refusé`, 'La déclaration de paiement n’a pas été validée. Contacte le support si nécessaire.', 0xED4245)]
+          embeds: [
+            makeEmbed(
+              `❌ Paiement ${id} refusé`,
+              'La déclaration de paiement n’a pas été validée. Contacte le support si nécessaire.',
+              0xED4245
+            )
+          ]
         });
 
         return interaction.update({
@@ -2280,6 +2205,7 @@ client.on(Events.InteractionCreate, async interaction => {
         const id = interaction.customId.split(':')[1];
         const ops = migrateOperations();
         const payment = ops.payments[id];
+
         if (!payment) return interaction.reply({ content: '❌ Paiement introuvable.', flags: MessageFlags.Ephemeral });
 
         await dmUser(payment.userId, {
@@ -2291,6 +2217,8 @@ client.on(Events.InteractionCreate, async interaction => {
           ]
         });
 
+        audit(payment.guildId, 'payment', id, 'Nouvelle preuve demandée', interaction.user.id);
+
         return interaction.reply({ content: '✅ Demande envoyée au client en MP.' });
       }
 
@@ -2298,15 +2226,19 @@ client.on(Events.InteractionCreate, async interaction => {
         const id = interaction.customId.split(':')[1];
         const ops = migrateOperations();
         const project = ops.projects[id];
+
         if (!project) return interaction.reply({ content: '❌ Projet introuvable.', flags: MessageFlags.Ephemeral });
 
         project.claimedBy = interaction.user.id;
         project.updatedAt = new Date().toISOString();
+
         ops.projects[id] = project;
         saveJson(OPS_FILE, ops);
 
-        await refreshProjectMessage(interaction.guild, project);
-        await refreshBusinessDashboards(interaction.guild);
+        audit(project.guildId, 'project', id, 'Projet pris en charge', interaction.user.id);
+
+        await refreshProjectCards(interaction.guild, project);
+        await refreshDashboards(interaction.guild);
 
         return interaction.reply({ content: `👤 Projet **${id}** pris en charge par ${interaction.user}.` });
       }
@@ -2318,35 +2250,18 @@ client.on(Events.InteractionCreate, async interaction => {
         const [action, id] = interaction.customId.split(':');
         const ops = migrateOperations();
         const project = ops.projects[id];
+
         if (!project) return interaction.reply({ content: '❌ Projet introuvable.', flags: MessageFlags.Ephemeral });
 
-        if (action === 'project_next') {
-          project.stageIndex = Math.min(PROJECT_STAGES.length - 1, project.stageIndex + 1);
-        } else {
-          project.stageIndex = Math.max(0, project.stageIndex - 1);
-        }
+        const newIndex = action === 'project_next'
+          ? Math.min(PROJECT_STAGES.length - 1, project.stageIndex + 1)
+          : Math.max(0, project.stageIndex - 1);
 
-        project.updatedAt = new Date().toISOString();
-        ops.projects[id] = project;
-        saveJson(OPS_FILE, ops);
+        await changeProjectStage(interaction.guild, project, newIndex, interaction.user.id);
 
-        await refreshProjectMessage(interaction.guild, project);
-        await postProjectStageCard(interaction.guild, project);
-        await refreshBusinessDashboards(interaction.guild);
-
-        const stage = PROJECT_STAGES[project.stageIndex];
-
-        await dmUser(project.userId, {
-          embeds: [
-            makeEmbed(
-              `🚀 Mise à jour du projet ${id}`,
-              `Projet : **${project.projectName}**\nNouvelle étape : **${stage.label}**\nProgression : **${stage.progress}%**`,
-              0x3498DB
-            )
-          ]
+        return interaction.reply({
+          content: `✅ Projet déplacé vers **${PROJECT_STAGES[newIndex].label}**. Le client a reçu un MP.`
         });
-
-        return interaction.reply({ content: `✅ Projet déplacé vers **${stage.label}**.` });
       }
 
       if (interaction.customId.startsWith('project_contact:')) {
@@ -2364,13 +2279,101 @@ client.on(Events.InteractionCreate, async interaction => {
 
         return interaction.showModal(modal);
       }
+
+      if (interaction.customId.startsWith('ticket_claim:')) {
+        const id = interaction.customId.split(':')[1];
+        const ops = migrateOperations();
+        const ticket = ops.tickets[id];
+
+        if (!ticket) return interaction.reply({ content: '❌ Ticket introuvable.', flags: MessageFlags.Ephemeral });
+
+        ticket.claimedBy = interaction.user.id;
+        ops.tickets[id] = ticket;
+        saveJson(OPS_FILE, ops);
+
+        audit(ticket.guildId, 'ticket', id, 'Ticket pris en charge', interaction.user.id);
+
+        return interaction.reply({ content: `👤 Ticket pris en charge par ${interaction.user}.` });
+      }
+
+      if (interaction.customId.startsWith('ticket_quote:')) {
+        const id = interaction.customId.split(':')[1];
+        const ops = migrateOperations();
+        const ticket = ops.tickets[id];
+
+        if (!ticket) return interaction.reply({ content: '❌ Ticket introuvable.', flags: MessageFlags.Ephemeral });
+
+        const modal = new ModalBuilder()
+          .setCustomId(`ticket_quote_modal:${id}`)
+          .setTitle('Créer un devis');
+
+        modal.addComponents(
+          new ActionRowBuilder().addComponents(
+            new TextInputBuilder().setCustomId('project_name').setLabel('Nom du bot / projet').setStyle(TextInputStyle.Short).setRequired(true)
+          ),
+          new ActionRowBuilder().addComponents(
+            new TextInputBuilder().setCustomId('service').setLabel('Service').setStyle(TextInputStyle.Short).setRequired(true)
+          ),
+          new ActionRowBuilder().addComponents(
+            new TextInputBuilder().setCustomId('description').setLabel('Description').setStyle(TextInputStyle.Paragraph).setRequired(true)
+          )
+        );
+
+        return interaction.showModal(modal);
+      }
+
+      if (interaction.customId.startsWith('ticket_contact:')) {
+        const id = interaction.customId.split(':')[1];
+
+        const modal = new ModalBuilder()
+          .setCustomId(`contact_ticket_modal:${id}`)
+          .setTitle('Contacter le client');
+
+        modal.addComponents(
+          new ActionRowBuilder().addComponents(
+            new TextInputBuilder().setCustomId('message').setLabel('Message à envoyer en MP').setStyle(TextInputStyle.Paragraph).setRequired(true).setMaxLength(1500)
+          )
+        );
+
+        return interaction.showModal(modal);
+      }
+
+      if (interaction.customId.startsWith('ticket_close:')) {
+        const id = interaction.customId.split(':')[1];
+        const ops = migrateOperations();
+        const ticket = ops.tickets[id];
+
+        if (!ticket) return interaction.reply({ content: '❌ Ticket introuvable.', flags: MessageFlags.Ephemeral });
+
+        ticket.status = 'Fermé';
+        ops.tickets[id] = ticket;
+        saveJson(OPS_FILE, ops);
+
+        audit(ticket.guildId, 'ticket', id, 'Ticket fermé', interaction.user.id);
+
+        await interaction.channel.permissionOverwrites.edit(ticket.userId, {
+          SendMessages: false
+        }).catch(() => {});
+
+        return interaction.update({
+          embeds: [
+            makeEmbed(
+              `🔒 ${id} fermé`,
+              `Le ticket a été fermé par ${interaction.user}.\nLes données restent enregistrées.`,
+              0x95A5A6
+            )
+          ],
+          components: []
+        });
+      }
     }
 
     if (interaction.isStringSelectMenu()) {
       if (interaction.customId === 'ticket_type') {
-        const config = getGuildConfig(interaction.guild.id);
-        const isPremium = interaction.channelId === config.channels.support_premium;
-        const categoryId = isPremium && config.categories.tickets_premium
+        const config = getConfig(interaction.guild.id);
+
+        const premiumPanel = interaction.channelId === config.channels.support_premium;
+        const categoryId = premiumPanel && config.categories.tickets_premium
           ? config.categories.tickets_premium
           : config.categories.tickets;
 
@@ -2381,10 +2384,10 @@ client.on(Events.InteractionCreate, async interaction => {
           });
         }
 
-        const type = interaction.values[0];
         const id = nextId('tickets', 'TICKET');
+        const type = interaction.values[0];
 
-        const permissions = [
+        const permissionOverwrites = [
           {
             id: interaction.guild.roles.everyone.id,
             deny: [PermissionFlagsBits.ViewChannel]
@@ -2397,9 +2400,29 @@ client.on(Events.InteractionCreate, async interaction => {
               PermissionFlagsBits.ReadMessageHistory,
               PermissionFlagsBits.AttachFiles
             ]
-          },
-          ...getStaffOverwrites(interaction.guild, config).slice(1)
+          }
         ];
+
+        const staffRoleIds = [
+          config.roles.staff,
+          config.roles.moderateur,
+          config.roles.administrateur,
+          config.roles.directeur,
+          config.roles.cofondateur,
+          config.roles.fondateur
+        ].filter(Boolean);
+
+        for (const roleId of [...new Set(staffRoleIds)]) {
+          permissionOverwrites.push({
+            id: roleId,
+            allow: [
+              PermissionFlagsBits.ViewChannel,
+              PermissionFlagsBits.SendMessages,
+              PermissionFlagsBits.ReadMessageHistory,
+              PermissionFlagsBits.AttachFiles
+            ]
+          });
+        }
 
         const channel = await interaction.guild.channels.create({
           name: `${type}-${interaction.user.username}`
@@ -2408,7 +2431,7 @@ client.on(Events.InteractionCreate, async interaction => {
             .slice(0, 90),
           type: ChannelType.GuildText,
           parent: categoryId,
-          permissionOverwrites: permissions
+          permissionOverwrites
         });
 
         const ticket = {
@@ -2426,15 +2449,24 @@ client.on(Events.InteractionCreate, async interaction => {
         ops.tickets[id] = ticket;
         saveJson(OPS_FILE, ops);
 
+        audit(interaction.guild.id, 'ticket', id, 'Ticket créé', interaction.user.id);
+
         await channel.send({
           content: `${interaction.user}`,
           embeds: [
             makeEmbed(
               `🎫 ${id} — ${type}`,
-              `Client : ${interaction.user}\nType : **${type}**\nStatut : **Ouvert**\n\nExplique ta demande le plus précisément possible.\n\nLes boutons ci-dessous sont réservés au personnel.`
+              `Client : ${interaction.user}\nType : **${type}**\nStatut : **Ouvert**\n\nExplique ta demande le plus précisément possible.`
             )
           ],
-          components: ticketButtons(id)
+          components: [
+            new ActionRowBuilder().addComponents(
+              new ButtonBuilder().setCustomId(`ticket_claim:${id}`).setLabel('Prendre le ticket').setStyle(ButtonStyle.Primary),
+              new ButtonBuilder().setCustomId(`ticket_quote:${id}`).setLabel('Créer un devis').setStyle(ButtonStyle.Success),
+              new ButtonBuilder().setCustomId(`ticket_contact:${id}`).setLabel('Contacter en MP').setStyle(ButtonStyle.Secondary),
+              new ButtonBuilder().setCustomId(`ticket_close:${id}`).setLabel('Fermer').setStyle(ButtonStyle.Danger)
+            )
+          ]
         });
 
         return interaction.reply({
@@ -2447,42 +2479,39 @@ client.on(Events.InteractionCreate, async interaction => {
         const id = interaction.customId.split(':')[1];
         const ops = migrateOperations();
         const project = ops.projects[id];
+
         if (!project) return interaction.reply({ content: '❌ Projet introuvable.', flags: MessageFlags.Ephemeral });
 
-        project.stageIndex = Number(interaction.values[0]);
-        project.updatedAt = new Date().toISOString();
-        ops.projects[id] = project;
-        saveJson(OPS_FILE, ops);
+        const newIndex = Number(interaction.values[0]);
 
-        await refreshProjectMessage(interaction.guild, project);
-        await postProjectStageCard(interaction.guild, project);
-        await refreshBusinessDashboards(interaction.guild);
+        await changeProjectStage(
+          interaction.guild,
+          project,
+          newIndex,
+          interaction.user.id
+        );
 
-        const stage = PROJECT_STAGES[project.stageIndex];
-
-        await dmUser(project.userId, {
-          embeds: [
-            makeEmbed(
-              `🚀 Mise à jour du projet ${id}`,
-              `Projet : **${project.projectName}**\nNouvelle étape : **${stage.label}**\nProgression : **${stage.progress}%**`,
-              0x3498DB
-            )
-          ]
+        return interaction.reply({
+          content: `✅ Étape définie sur **${PROJECT_STAGES[newIndex].label}**. Le client a reçu un MP.`
         });
-
-        return interaction.reply({ content: `✅ Étape définie sur **${stage.label}**.` });
       }
     }
 
     if (interaction.isModalSubmit()) {
       if (interaction.customId === 'suggestion_modal') {
-        const config = getGuildConfig(interaction.guild.id);
+        const config = getConfig(interaction.guild.id);
         const channel = interaction.guild.channels.cache.get(config.channels.suggestion);
         const text = interaction.fields.getTextInputValue('suggestion_text');
 
         if (channel && channel.isTextBased()) {
           await channel.send({
-            embeds: [makeEmbed(`💡 Suggestion de ${interaction.user.username}`, text, 0xF1C40F)]
+            embeds: [
+              makeEmbed(
+                `💡 Suggestion de ${interaction.user.username}`,
+                text,
+                0xF1C40F
+              )
+            ]
           });
         }
 
@@ -2501,7 +2530,8 @@ client.on(Events.InteractionCreate, async interaction => {
           interaction.fields.getTextInputValue('description')
         );
 
-        const config = getGuildConfig(interaction.guild.id);
+        const config = getConfig(interaction.guild.id);
+
         if (
           interaction.member &&
           config.roles.prospect &&
@@ -2528,9 +2558,14 @@ client.on(Events.InteractionCreate, async interaction => {
           interaction.fields.getTextInputValue('description')
         );
 
-        const config = getGuildConfig(guild.id);
+        const config = getConfig(guild.id);
         const member = await guild.members.fetch(interaction.user.id).catch(() => null);
-        if (member && config.roles.prospect && !member.roles.cache.has(config.roles.client)) {
+
+        if (
+          member &&
+          config.roles.prospect &&
+          !member.roles.cache.has(config.roles.client)
+        ) {
           await member.roles.add(config.roles.prospect).catch(() => {});
         }
 
@@ -2553,48 +2588,81 @@ client.on(Events.InteractionCreate, async interaction => {
           interaction.fields.getTextInputValue('project_name'),
           interaction.fields.getTextInputValue('service'),
           interaction.fields.getTextInputValue('description'),
-          null,
           ticketId
         );
 
-        return interaction.reply({ content: `✅ Devis **${quote.id}** créé à partir du ticket **${ticketId}**.` });
+        return interaction.reply({
+          content: `✅ Devis **${quote.id}** créé à partir du ticket **${ticketId}**.`
+        });
       }
 
       if (interaction.customId.startsWith('quote_price_modal:')) {
         const id = interaction.customId.split(':')[1];
         const ops = migrateOperations();
         const quote = ops.quotes[id];
+
         if (!quote) return interaction.reply({ content: '❌ Devis introuvable.', flags: MessageFlags.Ephemeral });
 
-        const price = Number(interaction.fields.getTextInputValue('price').replace(',', '.'));
+        const price = Number(
+          interaction.fields.getTextInputValue('price').replace(',', '.')
+        );
+
         if (!Number.isFinite(price) || price < 0) {
-          return interaction.reply({ content: '❌ Prix invalide.', flags: MessageFlags.Ephemeral });
+          return interaction.reply({
+            content: '❌ Prix invalide.',
+            flags: MessageFlags.Ephemeral
+          });
         }
 
         quote.price = price;
         quote.status = 'Prix défini';
+
         ops.quotes[id] = quote;
         saveJson(OPS_FILE, ops);
 
-        await refreshQuoteMessage(interaction.guild, quote);
-        await refreshBusinessDashboards(interaction.guild);
+        audit(quote.guildId, 'quote', id, `Prix fixé à ${price} €`, interaction.user.id);
 
-        return interaction.reply({ content: `✅ Prix du devis **${id}** fixé à **${price.toFixed(2)} €**.` });
+        await refreshQuoteCard(interaction.guild, quote);
+        await refreshDashboards(interaction.guild);
+
+        return interaction.reply({
+          content: `✅ Prix du devis **${id}** fixé à **${price.toFixed(2)} €**.`
+        });
       }
 
-      if (interaction.customId.startsWith('declare_payment_modal:')) {
-        const orderId = interaction.customId.split(':')[1];
+      if (
+        interaction.customId === 'declare_payment_manual_modal' ||
+        interaction.customId.startsWith('declare_payment_modal:')
+      ) {
+        let orderId;
+
+        if (interaction.customId === 'declare_payment_manual_modal') {
+          orderId = interaction.fields
+            .getTextInputValue('order_id')
+            .trim()
+            .toUpperCase();
+        } else {
+          orderId = interaction.customId.split(':')[1];
+        }
+
+        const proof = interaction.fields.getTextInputValue('proof');
         const ops = migrateOperations();
         const order = ops.orders[orderId];
 
-        if (!order || order.userId !== interaction.user.id) {
-          return interaction.reply({ content: '❌ Cette commande ne t’appartient pas.', flags: MessageFlags.Ephemeral });
+        if (
+          !order ||
+          order.userId !== interaction.user.id
+        ) {
+          return interaction.reply({
+            content: '❌ Cette commande est introuvable ou ne t’appartient pas.',
+            flags: MessageFlags.Ephemeral
+          });
         }
 
         const paymentId = nextId('payments', 'PAY');
-        const proof = interaction.fields.getTextInputValue('proof');
 
         const latest = migrateOperations();
+
         latest.payments[paymentId] = {
           id: paymentId,
           guildId: order.guildId,
@@ -2611,15 +2679,18 @@ client.on(Events.InteractionCreate, async interaction => {
 
         saveJson(OPS_FILE, latest);
 
-        const guild = await client.guilds.fetch(order.guildId);
-        const orderChannel = await guild.channels.fetch(order.channelId).catch(() => null);
+        audit(order.guildId, 'payment', paymentId, 'Paiement déclaré par le client', interaction.user.id);
 
-        if (orderChannel && orderChannel.isTextBased()) {
-          await orderChannel.send({
+        const guild = await client.guilds.fetch(order.guildId);
+        const config = getConfig(guild.id);
+        const paymentChannel = guild.channels.cache.get(config.channels.paiements);
+
+        if (paymentChannel && paymentChannel.isTextBased()) {
+          await paymentChannel.send({
             embeds: [
               makeEmbed(
                 `💳 Paiement déclaré — ${paymentId}`,
-                `Commande : **${orderId}**\nClient : <@${interaction.user.id}>\n\n**Preuve / référence :**\n${proof}`,
+                `Commande : **${orderId}**\nClient : <@${interaction.user.id}>\nMontant attendu : **${order.price !== null ? `${Number(order.price).toFixed(2)} €` : 'Non défini'}**\n\n**Preuve / référence :**\n${proof}`,
                 0xF39C12
               )
             ],
@@ -2633,7 +2704,7 @@ client.on(Events.InteractionCreate, async interaction => {
           });
         }
 
-        await refreshOrderMessage(guild, latest.orders[orderId]);
+        await refreshOrderCard(guild, latest.orders[orderId]);
 
         return interaction.reply({
           content: `✅ Paiement déclaré sous le numéro **${paymentId}**. L’équipe va le vérifier.`,
@@ -2641,56 +2712,49 @@ client.on(Events.InteractionCreate, async interaction => {
         });
       }
 
-      if (interaction.customId.startsWith('contact_ticket_modal:')) {
-        const id = interaction.customId.split(':')[1];
+      if (
+        interaction.customId.startsWith('contact_quote_modal:') ||
+        interaction.customId.startsWith('contact_order_modal:') ||
+        interaction.customId.startsWith('contact_project_modal:') ||
+        interaction.customId.startsWith('contact_ticket_modal:')
+      ) {
+        const [kindRaw, id] = interaction.customId.split(':');
         const ops = migrateOperations();
-        const item = ops.tickets[id];
-        if (!item) return interaction.reply({ content: '❌ Ticket introuvable.', flags: MessageFlags.Ephemeral });
+
+        const map = {
+          contact_quote_modal: 'quotes',
+          contact_order_modal: 'orders',
+          contact_project_modal: 'projects',
+          contact_ticket_modal: 'tickets'
+        };
+
+        const collection = map[kindRaw];
+        const item = collection ? ops[collection][id] : null;
+
+        if (!item) {
+          return interaction.reply({
+            content: '❌ Élément introuvable.',
+            flags: MessageFlags.Ephemeral
+          });
+        }
+
+        const text = interaction.fields.getTextInputValue('message');
 
         const ok = await dmUser(item.userId, {
-          embeds: [makeEmbed(`💬 Message concernant ton ticket ${id}`, interaction.fields.getTextInputValue('message'))]
+          embeds: [
+            makeEmbed(
+              `💬 Message concernant ${id}`,
+              text
+            )
+          ]
         });
 
-        return interaction.reply({ content: ok ? '✅ Message envoyé.' : '❌ Impossible d’envoyer le MP.', flags: MessageFlags.Ephemeral });
-      }
+        audit(item.guildId, collection, id, 'Message envoyé au client', interaction.user.id);
 
-      if (interaction.customId.startsWith('contact_quote_modal:')) {
-        const id = interaction.customId.split(':')[1];
-        const ops = migrateOperations();
-        const item = ops.quotes[id];
-        if (!item) return interaction.reply({ content: '❌ Devis introuvable.', flags: MessageFlags.Ephemeral });
-
-        const ok = await dmUser(item.userId, {
-          embeds: [makeEmbed(`💬 Message concernant ton devis ${id}`, interaction.fields.getTextInputValue('message'))]
+        return interaction.reply({
+          content: ok ? '✅ Message envoyé au client.' : '❌ Impossible d’envoyer le MP.',
+          flags: MessageFlags.Ephemeral
         });
-
-        return interaction.reply({ content: ok ? '✅ Message envoyé.' : '❌ Impossible d’envoyer le MP.', flags: MessageFlags.Ephemeral });
-      }
-
-      if (interaction.customId.startsWith('contact_order_modal:')) {
-        const id = interaction.customId.split(':')[1];
-        const ops = migrateOperations();
-        const item = ops.orders[id];
-        if (!item) return interaction.reply({ content: '❌ Commande introuvable.', flags: MessageFlags.Ephemeral });
-
-        const ok = await dmUser(item.userId, {
-          embeds: [makeEmbed(`💬 Message concernant ta commande ${id}`, interaction.fields.getTextInputValue('message'))]
-        });
-
-        return interaction.reply({ content: ok ? '✅ Message envoyé.' : '❌ Impossible d’envoyer le MP.', flags: MessageFlags.Ephemeral });
-      }
-
-      if (interaction.customId.startsWith('contact_project_modal:')) {
-        const id = interaction.customId.split(':')[1];
-        const ops = migrateOperations();
-        const item = ops.projects[id];
-        if (!item) return interaction.reply({ content: '❌ Projet introuvable.', flags: MessageFlags.Ephemeral });
-
-        const ok = await dmUser(item.userId, {
-          embeds: [makeEmbed(`💬 Message concernant ton projet ${id}`, interaction.fields.getTextInputValue('message'))]
-        });
-
-        return interaction.reply({ content: ok ? '✅ Message envoyé.' : '❌ Impossible d’envoyer le MP.', flags: MessageFlags.Ephemeral });
       }
     }
   } catch (error) {
