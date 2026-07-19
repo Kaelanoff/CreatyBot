@@ -636,50 +636,98 @@ function memberPermissionRoleKeys(){
 function channelPermissionProfile(key){
   const staff=staffPermissionRoleKeys();
   const management=uniqueKeys([...PERMISSION_GROUPS.direction,...PERMISSION_GROUPS.foundation]);
-  const publicReadOnly=['bienvenue','depart','reglement','annonces','info','roadmap','liens','faq'];
-  const publicInteractive=['sondages','ticket'];
-  const memberReadOnly=['creation_bot','creation_serveur','hebergement','tarifs','garantie','conditions','offres_speciales'];
-  const memberChat=['attente_vocale','discussion','media','suggestion','vos_bots','presentation','evenements','commander','demander_devis','suivi_commandes','paiements','questions_commandes'];
+  const devManagement=uniqueKeys([...PERMISSION_GROUPS.development,...management]);
+  const commercialManagement=uniqueKeys([...PERMISSION_GROUPS.commercial,...management]);
+  const designManagement=uniqueKeys([...PERMISSION_GROUPS.design,...management]);
+  const clientStaff=uniqueKeys([...PERMISSION_GROUPS.clientele,...staff]);
+  const publicStaffWriters=uniqueKeys([...PERMISSION_GROUPS.moderation,...PERMISSION_GROUPS.direction,...PERMISSION_GROUPS.foundation]);
 
-  if(publicReadOnly.includes(key)) return {public:true,chat:false,roles:[]};
-  if(publicInteractive.includes(key)) return {public:true,chat:false,roles:[]};
-  if(memberReadOnly.includes(key)) return {public:false,chat:false,roles:memberPermissionRoleKeys()};
-  if(memberChat.includes(key)) return {public:false,chat:true,roles:memberPermissionRoleKeys()};
+  // PUBLIC / INFORMATIONS : tout le monde peut lire, seuls les rôles responsables peuvent écrire.
+  if(['bienvenue','depart','reglement','annonces','info','roadmap','liens','faq'].includes(key))
+    return {public:true,mode:'readonly',roles:staff,writers:publicStaffWriters};
 
-  if(['infos_clients','livraisons_clients','factures','avis'].includes(key))
-    return {public:false,chat:false,roles:uniqueKeys([...PERMISSION_GROUPS.clientele,...staff])};
-  if(['support_premium','commandes_premium','avantages_premium','annonces_premium','premium_chat'].includes(key))
-    return {public:false,chat:key==='premium_chat'||key==='support_premium',roles:uniqueKeys(['client_premium','pole_clientele',...staff])};
+  // PANNEAUX PUBLICS : tout le monde voit et interagit, seuls les responsables écrivent.
+  if(['sondages','ticket'].includes(key))
+    return {public:true,mode:'interactive',roles:staff,writers:publicStaffWriters};
+
+  // COMMUNAUTÉ : les membres et équipes internes peuvent réellement discuter.
+  if(['discussion','media','suggestion','vos_bots','presentation','evenements'].includes(key))
+    return {public:false,mode:'chat',roles:memberPermissionRoleKeys()};
+
+  // VOCAL D'ATTENTE : membres + équipes internes.
+  if(key==='attente_vocale')
+    return {public:false,mode:'voice',roles:memberPermissionRoleKeys()};
+
+  // SERVICES / INFORMATIONS COMMERCIALES : membres en lecture, staff autorisé à publier.
+  if(['creation_bot','creation_serveur','hebergement','tarifs','garantie','conditions','offres_speciales'].includes(key))
+    return {public:false,mode:'readonly',roles:memberPermissionRoleKeys(),writers:uniqueKeys([...PERMISSION_GROUPS.commercial,...management])};
+
+  // PANNEAUX CLIENTS : membres voient et utilisent les boutons/menus, équipe commerciale + direction écrit.
+  if(['commander','demander_devis','suivi_commandes','paiements'].includes(key))
+    return {public:false,mode:'interactive',roles:memberPermissionRoleKeys(),writers:uniqueKeys([...PERMISSION_GROUPS.commercial,...management])};
+
+  // QUESTIONS COMMANDES : les membres peuvent parler directement.
+  if(key==='questions_commandes')
+    return {public:false,mode:'chat',roles:memberPermissionRoleKeys()};
+
+  // ESPACE CLIENT : clients concernés lisent, personnel concerné peut publier.
+  if(['infos_clients','livraisons_clients','factures'].includes(key))
+    return {public:false,mode:'readonly',roles:clientStaff,writers:uniqueKeys([...PERMISSION_GROUPS.commercial,...management])};
+  if(key==='avis')
+    return {public:false,mode:'interactive',roles:clientStaff,writers:uniqueKeys([...PERMISSION_GROUPS.commercial,...management])};
+
+  // PREMIUM : panneau = interaction seulement pour client, chat = parole autorisée.
+  if(key==='premium_chat'||key==='support_premium')
+    return {public:false,mode:'chat',roles:uniqueKeys(['client_premium','pole_clientele',...staff])};
+  if(key==='commandes_premium')
+    return {public:false,mode:'interactive',roles:uniqueKeys(['client_premium','pole_clientele',...staff]),writers:uniqueKeys([...PERMISSION_GROUPS.commercial,...management])};
+  if(['avantages_premium','annonces_premium'].includes(key))
+    return {public:false,mode:'readonly',roles:uniqueKeys(['client_premium','pole_clientele',...staff]),writers:uniqueKeys([...PERMISSION_GROUPS.commercial,...management])};
+
+  // DÉVELOPPEMENT : annonces/docs en lecture pour l'équipe, responsables peuvent publier ; espaces de travail en chat.
   if(['annonces_dev','documentation'].includes(key))
-    return {public:false,chat:false,roles:uniqueKeys([...PERMISSION_GROUPS.development,...management])};
+    return {public:false,mode:'readonly',roles:devManagement,writers:devManagement};
   if(['discussion_dev','tests_dev','bugs'].includes(key))
-    return {public:false,chat:true,roles:uniqueKeys([...PERMISSION_GROUPS.development,...management])};
+    return {public:false,mode:'chat',roles:devManagement};
+
+  // PROJETS CLIENTS : ce sont des salons de travail, les pôles concernés peuvent parler et envoyer des fichiers.
   if(['liste_projets','projets_attente','analyse','developpement','tests_projets','corrections','termines','livraisons_projets','archives'].includes(key))
-    return {public:false,chat:true,roles:uniqueKeys([...PERMISSION_GROUPS.development,...PERMISSION_GROUPS.commercial,...PERMISSION_GROUPS.design,...management])};
-  if(['ventes','devis_commerciaux','commandes_commerciales','statistiques_commerciales','objectifs','chiffre_affaires'].includes(key))
-    return {public:false,chat:false,roles:uniqueKeys([...PERMISSION_GROUPS.commercial,...management])};
-  if(key==='discussion_commerciale')
-    return {public:false,chat:true,roles:uniqueKeys([...PERMISSION_GROUPS.commercial,...management])};
-  if(['creations','logos','bannieres','miniatures','reseaux_sociaux'].includes(key))
-    return {public:false,chat:false,roles:uniqueKeys([...PERMISSION_GROUPS.design,...management])};
-  if(key==='discussion_design')
-    return {public:false,chat:true,roles:uniqueKeys([...PERMISSION_GROUPS.design,...management])};
-  if(['staff_chat','recrutements','sanctions','reunions'].includes(key))
-    return {public:false,chat:true,roles:staff};
+    return {public:false,mode:'chat',roles:uniqueKeys([...PERMISSION_GROUPS.development,...PERMISSION_GROUPS.commercial,...PERMISSION_GROUPS.design,...management])};
+
+  // COMMERCIAL : stats/CA/objectifs = lecture avec responsables qui publient ; autres = travail en chat.
+  if(['statistiques_commerciales','objectifs','chiffre_affaires'].includes(key))
+    return {public:false,mode:'readonly',roles:commercialManagement,writers:commercialManagement};
+  if(['ventes','devis_commerciaux','commandes_commerciales','discussion_commerciale'].includes(key))
+    return {public:false,mode:'chat',roles:commercialManagement};
+
+  // DESIGN : salons de travail, envoi d'images/fichiers/liens autorisé.
+  if(['creations','logos','bannieres','miniatures','reseaux_sociaux','discussion_design'].includes(key))
+    return {public:false,mode:'chat',roles:designManagement};
+
+  // STAFF : annonces = lecture pour staff, direction/fondation publie ; autres = discussion.
   if(key==='staff_annonces')
-    return {public:false,chat:false,roles:staff};
+    return {public:false,mode:'readonly',roles:staff,writers:management};
+  if(['staff_chat','recrutements','sanctions','reunions'].includes(key))
+    return {public:false,mode:'chat',roles:staff};
+
+  // DIRECTION : salons de travail internes.
   if(['direction','finance','statistiques_globales','planning','partenaires','contrats','decisions','documents'].includes(key))
-    return {public:false,chat:true,roles:management};
+    return {public:false,mode:'chat',roles:management};
+
+  // FONDATION : uniquement fondation, parole/fichiers autorisés.
   if(['fondation','documents_confidentiels','projets_secrets','gestion_financiere','acces_total','journal_direction'].includes(key))
-    return {public:false,chat:true,roles:PERMISSION_GROUPS.foundation};
+    return {public:false,mode:'chat',roles:PERMISSION_GROUPS.foundation};
+
+  // GESTION CLIENTS : équipe commerciale + direction/fondation travaillent dedans.
   if(['liste_clients','nouveaux_clients','clients_premium'].includes(key))
-    return {public:false,chat:false,roles:uniqueKeys([...PERMISSION_GROUPS.commercial,...management])};
+    return {public:false,mode:'chat',roles:commercialManagement};
+
+  // LOGS : lecture seule, direction/fondation peut intervenir si nécessaire.
   if(['logs_bot','logs_erreurs','logs_roles'].includes(key))
-    return {public:false,chat:false,roles:uniqueKeys([...PERMISSION_GROUPS.development,...management])};
+    return {public:false,mode:'readonly',roles:devManagement,writers:management};
 
-  return {public:false,chat:true,roles:staff};
+  return {public:false,mode:'chat',roles:staff};
 }
-
 function categoryPermissionRoleKeys(key){
   if(key==='devis') return uniqueKeys([...PERMISSION_GROUPS.commercial,...PERMISSION_GROUPS.direction,...PERMISSION_GROUPS.foundation]);
   if(key==='tickets_premium') return uniqueKeys([...PERMISSION_GROUPS.commercial,...PERMISSION_GROUPS.moderation,...PERMISSION_GROUPS.direction,...PERMISSION_GROUPS.foundation]);
@@ -694,8 +742,12 @@ async function applyAllConfiguredPermissions(guild,c){
   const configuredRoleMap=new Map(ROLES.map(([key])=>[key,c.roles[key]]).filter(([,id])=>Boolean(id)));
   const managedRoleIds=new Set([...configuredRoleMap.values()]);
   const result={channels:0,categories:0,skipped:0,errors:[]};
+
   const readPerms=[PermissionFlagsBits.ViewChannel,PermissionFlagsBits.ReadMessageHistory];
-  const chatPerms=[...readPerms,PermissionFlagsBits.SendMessages,PermissionFlagsBits.AddReactions,PermissionFlagsBits.AttachFiles,PermissionFlagsBits.EmbedLinks,PermissionFlagsBits.UseExternalEmojis,PermissionFlagsBits.UseApplicationCommands,PermissionFlagsBits.CreatePublicThreads,PermissionFlagsBits.CreatePrivateThreads,PermissionFlagsBits.SendMessagesInThreads];
+  const interactivePerms=[...readPerms,PermissionFlagsBits.AddReactions,PermissionFlagsBits.UseExternalEmojis,PermissionFlagsBits.UseApplicationCommands];
+  const chatPerms=[...interactivePerms,PermissionFlagsBits.SendMessages,PermissionFlagsBits.AttachFiles,PermissionFlagsBits.EmbedLinks,PermissionFlagsBits.CreatePublicThreads,PermissionFlagsBits.CreatePrivateThreads,PermissionFlagsBits.SendMessagesInThreads];
+  const voicePerms=[PermissionFlagsBits.ViewChannel,PermissionFlagsBits.Connect,PermissionFlagsBits.Speak,PermissionFlagsBits.Stream,PermissionFlagsBits.UseVAD];
+  const writeBits=[PermissionFlagsBits.SendMessages,PermissionFlagsBits.AttachFiles,PermissionFlagsBits.EmbedLinks,PermissionFlagsBits.CreatePublicThreads,PermissionFlagsBits.CreatePrivateThreads,PermissionFlagsBits.SendMessagesInThreads];
 
   function preservedOverwrites(target){
     return target.permissionOverwrites.cache
@@ -703,17 +755,39 @@ async function applyAllConfiguredPermissions(guild,c){
       .map(o=>({id:o.id,type:o.type,allow:o.allow.bitfield,deny:o.deny.bitfield}));
   }
 
+  function allowedPermsForMode(mode){
+    if(mode==='chat') return chatPerms;
+    if(mode==='voice') return voicePerms;
+    if(mode==='interactive') return interactivePerms;
+    return readPerms;
+  }
+
   function overwritesFor(target,profile){
     const rows=[];
-    rows.push({
-      id:guild.roles.everyone.id,
-      allow:profile.public?(profile.chat?chatPerms:readPerms):[],
-      deny:profile.public?[]:[PermissionFlagsBits.ViewChannel]
-    });
-    const allowedRoleIds=new Set(profile.roles.map(k=>configuredRoleMap.get(k)).filter(Boolean));
-    for(const roleId of allowedRoleIds){
-      rows.push({id:roleId,allow:profile.chat?chatPerms:readPerms,deny:[]});
+    const mode=profile.mode||'readonly';
+    const basePerms=allowedPermsForMode(mode);
+    const roleKeys=uniqueKeys(profile.roles||[]);
+    const writerKeys=uniqueKeys(profile.writers||[]);
+    const allowedRoleIds=new Set(roleKeys.map(k=>configuredRoleMap.get(k)).filter(Boolean));
+    const writerRoleIds=new Set(writerKeys.map(k=>configuredRoleMap.get(k)).filter(Boolean));
+
+    if(profile.public){
+      rows.push({id:guild.roles.everyone.id,allow:basePerms,deny:mode==='readonly'||mode==='interactive'?writeBits:[]});
+    }else{
+      rows.push({id:guild.roles.everyone.id,allow:[],deny:[PermissionFlagsBits.ViewChannel]});
     }
+
+    for(const [roleKey,roleId] of configuredRoleMap.entries()){
+      if(!allowedRoleIds.has(roleId)){
+        rows.push({id:roleId,allow:[],deny:[PermissionFlagsBits.ViewChannel]});
+        continue;
+      }
+
+      const canWrite=mode==='chat'||mode==='voice'||writerRoleIds.has(roleId);
+      const allow=mode==='voice'?voicePerms:canWrite?chatPerms:mode==='interactive'?interactivePerms:readPerms;
+      rows.push({id:roleId,allow,deny:(!canWrite&&mode!=='voice')?writeBits:[]});
+    }
+
     return [...rows,...preservedOverwrites(target)];
   }
 
@@ -723,7 +797,9 @@ async function applyAllConfiguredPermissions(guild,c){
     const channel=await guild.channels.fetch(channelId).catch(()=>null);
     if(!channel){result.skipped++;continue;}
     try{
-      await channel.permissionOverwrites.set(overwritesFor(channel,channelPermissionProfile(key)),`Creaty Bot /salon perm — ${label}`);
+      let profile=channelPermissionProfile(key);
+      if(channel.type===ChannelType.GuildVoice||channel.type===ChannelType.GuildStageVoice) profile={...profile,mode:'voice'};
+      await channel.permissionOverwrites.set(overwritesFor(channel,profile),`Creaty Bot /salon perm — ${label}`);
       result.channels++;
     }catch(error){result.errors.push(`${label}: ${error.message}`);}
   }
@@ -734,14 +810,13 @@ async function applyAllConfiguredPermissions(guild,c){
     const category=await guild.channels.fetch(categoryId).catch(()=>null);
     if(!category||category.type!==ChannelType.GuildCategory){result.skipped++;continue;}
     try{
-      const profile={public:false,chat:true,roles:categoryPermissionRoleKeys(key)};
+      const profile={public:false,mode:'chat',roles:categoryPermissionRoleKeys(key)};
       await category.permissionOverwrites.set(overwritesFor(category,profile),`Creaty Bot /salon perm — ${label}`);
       result.categories++;
     }catch(error){result.errors.push(`${label}: ${error.message}`);}
   }
   return result;
 }
-
 const commands=[
   new SlashCommandBuilder().setName('config').setDescription('Configuration complète.')
     .addSubcommand(s=>s.setName('salon').setDescription('Configurer un salon ou une catégorie.').addStringOption(o=>o.setName('type').setDescription('Élément').setRequired(true).setAutocomplete(true)).addChannelOption(o=>o.setName('cible').setDescription('Salon ou catégorie').setRequired(true)))
