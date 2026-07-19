@@ -605,6 +605,17 @@ async function saveProjectCards(guild,p){
   const db=getDb();db.projects[p.id]=p;writeJson(DB_FILE,db);
 }
 
+
+async function syncProjectCardsSafe(guild,p,context='Synchronisation projet'){
+  try{
+    await saveProjectCards(guild,p);
+    return true;
+  }catch(error){
+    await logError(guild.id,error,`${context} ${p.id}`).catch(()=>{});
+    return false;
+  }
+}
+
 async function createDeliveryIfNeeded(guild,p){
   if(PROJECT_STAGES[p.stageIndex].key!=='livraisons_projets') return null;
   const db=getDb(); const existing=Object.values(db.deliveries).find(x=>x.projectId===p.id); if(existing) return existing;
@@ -615,11 +626,64 @@ async function createDeliveryIfNeeded(guild,p){
 }
 
 async function changeProjectStage(guild,p,newIndex){
-  if(newIndex===p.stageIndex) return false;
-  const old=PROJECT_STAGES[p.stageIndex], now=PROJECT_STAGES[newIndex]; p.stageIndex=newIndex;p.updatedAt=new Date().toISOString();
-  const db=getDb();db.projects[p.id]=p;writeJson(DB_FILE,db);await saveProjectCards(guild,p);await createDeliveryIfNeeded(guild,p);
-  let clientMsg=`Votre projet **${p.projectName}** passe de **${old.label}** à **${now.label}**.\nProgression : **${now.progress}%**`;if(now.key==='termines')clientMsg+='\n\nVotre commande est terminée et se prépare maintenant pour la livraison.';if(now.key==='livraisons_projets')clientMsg+='\n\nVotre commande est maintenant en cours de livraison.';await sendDm(p.userId,{embeds:[embed(`🚀 Mise à jour ${p.id}`,clientMsg,0x3498DB)]});
-  await journal(guild.id,`${p.id} passé en ${now.label}`);return true;
+  if(!Number.isInteger(newIndex)||newIndex<0||newIndex>=PROJECT_STAGES.length)throw new Error('Étape de projet invalide.');
+  if(newIndex===p.stageIndex)return false;
+
+  const old=PROJECT_STAGES[p.stageIndex];
+  const now=PROJECT_STAGES[newIndex];
+
+  p.stageIndex=newIndex;
+  p.updatedAt=new Date().toISOString();
+
+  const db=getDb();
+  db.projects[p.id]=p;
+
+  // Synchroniser aussi le statut de la commande liée.
+  const order=db.orders[p.orderId];
+  if(order){
+    const orderStatusByStage={
+      projets_attente:'Projet créé',
+      analyse:'En analyse',
+      developpement:'En développement',
+      tests_projets:'En tests',
+      corrections:'En corrections',
+      termines:'Terminée',
+      livraisons_projets:'En livraison',
+      archives:'Archivée'
+    };
+    order.status=orderStatusByStage[now.key]||order.status;
+    db.orders[order.id]=order;
+  }
+  writeJson(DB_FILE,db);
+
+  // Déplace réellement la fiche : suppression dans l'ancien salon d'étape,
+  // mise à jour de la fiche principale et création dans le nouveau salon.
+  await syncProjectCardsSafe(guild,p,'Changement étape projet');
+
+  if(order){
+    try{await saveOrderCard(guild,getDb().orders[order.id])}
+    catch(error){await logError(guild.id,error,`Mise à jour commande liée ${order.id}`).catch(()=>{})}
+  }
+
+  await createDeliveryIfNeeded(guild,p).catch(error=>logError(guild.id,error,`Création livraison ${p.id}`));
+
+  let clientMsg=
+    `Votre projet **${p.id} — ${p.projectName}** vient d'être mis à jour.\n\n`+
+    `Ancienne étape : **${old.label}**\n`+
+    `Nouvelle étape : **${now.label}**\n`+
+    `Progression : **${now.progress}%**`;
+
+  if(now.key==='analyse')clientMsg+='\n\nNotre équipe analyse maintenant votre demande et prépare le développement.';
+  if(now.key==='developpement')clientMsg+='\n\nLe développement de votre projet a commencé.';
+  if(now.key==='tests_projets')clientMsg+='\n\nVotre projet est maintenant en phase de tests.';
+  if(now.key==='corrections')clientMsg+='\n\nNotre équipe applique actuellement les corrections nécessaires.';
+  if(now.key==='termines')clientMsg+='\n\n✅ Votre projet est terminé. Il se prépare maintenant pour la livraison.';
+  if(now.key==='livraisons_projets')clientMsg+='\n\n📦 Votre commande est maintenant en cours de livraison.';
+  if(now.key==='archives')clientMsg+='\n\n📁 Votre projet a été archivé. Son historique reste enregistré.';
+
+  await sendDm(p.userId,{embeds:[embed(`🚀 Mise à jour ${p.id}`,clientMsg,0x3498DB)]});
+  await journal(guild.id,`${p.id} passé de ${old.label} à ${now.label}`);
+  return true;
 }
 
 async function grantProspect(guild,userId){const c=getConfig(guild.id);const m=await getMember(guild,userId);if(!m)return;for(const key of ['pole_clientele','prospect'])if(c.roles[key]&&!m.roles.cache.has(c.roles[key]))await applyRole(m,c.roles[key],'add',guild.id,key).catch(e=>logError(guild.id,e,'Attribution Prospect'));}
@@ -637,9 +701,64 @@ async function createOrder(guild,userId,offerKey,projectName,service,description
 }
 
 async function createProject(guild,o){
-  if(o.projectId){const db=getDb();return db.projects[o.projectId]||null;}
-  const id=nextId('projects','PROJ');const p={id,guildId:guild.id,userId:o.userId,orderId:o.id,offerLabel:o.offerLabel,projectName:o.projectName,stageIndex:0,claimedBy:null,listMessageId:null,stageMessageId:null,stageChannelId:null,createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()};
-  const db=getDb();db.projects[id]=p;if(db.orders[o.id]){db.orders[o.id].projectId=id;db.orders[o.id].status='Projet créé'}writeJson(DB_FILE,db);await saveProjectCards(guild,p);await saveOrderCard(guild,getDb().orders[o.id]);await sendDm(p.userId,{embeds:[embed(`🚀 Projet ${id} créé`,`Ton projet **${p.projectName}** est maintenant en **En attente**.`)]});await journal(guild.id,`${id} créé`);return p;
+  const db=getDb();
+
+  // Idempotence : retrouver un projet déjà lié à la commande, même si order.projectId
+  // n'a pas été sauvegardé correctement lors d'une ancienne tentative.
+  let existing=null;
+  if(o.projectId&&db.projects[o.projectId])existing=db.projects[o.projectId];
+  if(!existing)existing=Object.values(db.projects).find(p=>p.guildId===guild.id&&p.orderId===o.id)||null;
+
+  if(existing){
+    if(db.orders[o.id]&&db.orders[o.id].projectId!==existing.id){
+      db.orders[o.id].projectId=existing.id;
+      db.orders[o.id].status='Projet créé';
+      writeJson(DB_FILE,db);
+    }
+    await syncProjectCardsSafe(guild,existing,'Réparation fiches projet');
+    return existing;
+  }
+
+  const id=nextId('projects','PROJ');
+  const p={
+    id,
+    guildId:guild.id,
+    userId:o.userId,
+    orderId:o.id,
+    offerLabel:o.offerLabel,
+    projectName:o.projectName,
+    stageIndex:0,
+    claimedBy:null,
+    listMessageId:null,
+    stageMessageId:null,
+    stageChannelId:null,
+    createdAt:new Date().toISOString(),
+    updatedAt:new Date().toISOString()
+  };
+
+  const latest=getDb();
+  latest.projects[id]=p;
+  if(latest.orders[o.id]){
+    latest.orders[o.id].projectId=id;
+    latest.orders[o.id].status='Projet créé';
+  }
+  writeJson(DB_FILE,latest);
+
+  // Les données du projet existent même si un salon n'est pas encore configuré.
+  await syncProjectCardsSafe(guild,p,'Création fiches projet');
+
+  const orderNow=getDb().orders[o.id];
+  if(orderNow){
+    try{await saveOrderCard(guild,orderNow)}catch(error){await logError(guild.id,error,`Mise à jour commande ${o.id} après création projet`).catch(()=>{})}
+  }
+
+  await sendDm(p.userId,{embeds:[embed(
+    `🚀 Projet ${id} créé`,
+    `Merci pour votre confiance.\n\nVotre paiement a été validé et votre commande **${o.id}** est devenue le projet **${id}**.\nÉtape actuelle : **En attente**.\n\nVous serez informé en MP à chaque changement d'étape.`
+  )]});
+
+  await journal(guild.id,`${id} créé depuis ${o.id}`);
+  return p;
 }
 
 async function upsertClient(guild,o,amount,premium){
@@ -712,15 +831,79 @@ async function notifyFoundationPaymentDM(guild,payment,paymentPayload){
 }
 
 async function validatePayment(guild,paymentId,staffId){
-  const db=getDb();const pay=db.payments[paymentId];if(!pay)throw new Error('Paiement introuvable.');if(pay.status==='Validé'&&pay.processed)return {already:true,pay};
-  const o=db.orders[pay.orderId];if(!o)throw new Error('Commande liée introuvable.');
-  pay.status='Validé';pay.processed=true;pay.validatedBy=staffId;pay.validatedAt=new Date().toISOString();db.payments[paymentId]=pay;o.status='Payée';o.paymentStatus='Validé';db.orders[o.id]=o;writeJson(DB_FILE,db);
-  await grantClient(guild,o.userId,o.offerKey==='premium');
+  let db=getDb();
+  const pay=db.payments[paymentId];
+  if(!pay)throw new Error('Paiement introuvable.');
+
+  const o=db.orders[pay.orderId];
+  if(!o)throw new Error('Commande liée introuvable.');
+
+  // Si tout le parcours a déjà été exécuté, ne créer aucun doublon.
+  if(pay.status==='Validé'&&pay.processed){
+    const existingProject=o.projectId?db.projects[o.projectId]:Object.values(db.projects).find(p=>p.orderId===o.id);
+    return {already:true,pay,project:existingProject||null,order:o};
+  }
+
+  // Marquer le paiement comme validé, mais processed reste false jusqu'à la fin.
+  pay.status='Validé';
+  pay.validatedBy=staffId;
+  pay.validatedAt=pay.validatedAt||new Date().toISOString();
+  pay.processed=false;
+  o.status='Payée';
+  o.paymentStatus='Validé';
+  db.payments[paymentId]=pay;
+  db.orders[o.id]=o;
+  writeJson(DB_FILE,db);
+
+  // Une erreur de hiérarchie Discord sur les rôles ne doit jamais empêcher
+  // la création du projet après paiement.
+  try{
+    await grantClient(guild,o.userId,o.offerKey==='premium');
+  }catch(error){
+    await logError(guild.id,error,`Attribution rôles client après ${paymentId}`).catch(()=>{});
+  }
+
   const clientRec=await upsertClient(guild,o,o.price||0,o.offerKey==='premium');
-  let project=await createProject(guild,getDb().orders[o.id]);
-  const latest=getDb();const orderNow=latest.orders[o.id];
-  await createSale(guild,{...orderNow,projectId:project?.id},orderNow.price||0);await createInvoice(guild,orderNow,orderNow.price||0);await saveOrderCard(guild,getDb().orders[o.id]);await refreshBusinessPanels(guild);
-  await sendDm(o.userId,{embeds:[embed(`✅ Paiement ${paymentId} validé`,`Commande **${o.id}** payée.\nClient : **${clientRec.id}**\nProjet : **${project?.id||'Création en cours'}**`,0x57F287)]});await journal(guild.id,`${paymentId} validé`);return {already:false,pay};
+
+  // Création/récupération idempotente du projet.
+  const project=await createProject(guild,getDb().orders[o.id]);
+
+  // Création idempotente vente + facture.
+  const latestAfterProject=getDb();
+  const orderNow=latestAfterProject.orders[o.id];
+  await createSale(guild,{...orderNow,projectId:project.id},orderNow.price||0);
+  await createInvoice(guild,orderNow,orderNow.price||0);
+
+  // Finaliser seulement lorsque le parcours essentiel est terminé.
+  db=getDb();
+  if(db.payments[paymentId]){
+    db.payments[paymentId].processed=true;
+    db.payments[paymentId].projectId=project.id;
+  }
+  if(db.orders[o.id]){
+    db.orders[o.id].projectId=project.id;
+    db.orders[o.id].status='Projet créé';
+  }
+  writeJson(DB_FILE,db);
+
+  try{await saveOrderCard(guild,getDb().orders[o.id])}
+  catch(error){await logError(guild.id,error,`Actualisation commande ${o.id}`).catch(()=>{})}
+
+  await refreshBusinessPanels(guild).catch(error=>logError(guild.id,error,'Actualisation statistiques après paiement'));
+
+  await sendDm(o.userId,{embeds:[embed(
+    `✅ Paiement ${paymentId} validé`,
+    `Votre paiement a été confirmé par la Fondation.\n\n`+
+    `Commande : **${o.id}**\n`+
+    `Statut : **Payée**\n`+
+    `Projet créé : **${project.id}**\n`+
+    `Étape actuelle : **En attente**\n\n`+
+    `Merci pour votre confiance. Vous recevrez désormais un MP à chaque avancée de votre projet.`,
+    0x57F287
+  )]});
+
+  await journal(guild.id,`${paymentId} validé → ${o.id} → ${project.id}`);
+  return {already:false,pay:getDb().payments[paymentId],project,order:getDb().orders[o.id],clientRec};
 }
 
 async function createTicket(guild,userId,type,premium=false,linkedOrderId=null){
@@ -1011,6 +1194,9 @@ const commands=[
   new SlashCommandBuilder().setName('role').setDescription('Gérer les grades internes.').addSubcommand(s=>s.setName('attribuer').setDescription('Attribuer un grade et son pôle.').addUserOption(o=>o.setName('utilisateur').setDescription('Utilisateur').setRequired(true)).addStringOption(o=>o.setName('grade').setDescription('Grade').setRequired(true).setAutocomplete(true))).addSubcommand(s=>s.setName('retirer').setDescription('Retirer un grade et éventuellement son pôle.').addUserOption(o=>o.setName('utilisateur').setDescription('Utilisateur').setRequired(true)).addStringOption(o=>o.setName('grade').setDescription('Grade').setRequired(true).setAutocomplete(true))),
   new SlashCommandBuilder().setName('projet').setDescription('Gestion manuelle d’un projet.').addSubcommand(s=>s.setName('avancer').setDescription('Avancer un projet.').addStringOption(o=>o.setName('id').setDescription('PROJ-0001').setRequired(true))).addSubcommand(s=>s.setName('reculer').setDescription('Reculer un projet.').addStringOption(o=>o.setName('id').setDescription('PROJ-0001').setRequired(true))).addSubcommand(s=>s.setName('etape').setDescription('Définir une étape.').addStringOption(o=>o.setName('id').setDescription('PROJ-0001').setRequired(true)).addStringOption(o=>o.setName('etape').setDescription('Étape').setRequired(true).addChoices(...PROJECT_STAGES.map((s,i)=>({name:s.label,value:String(i)}))))),
   new SlashCommandBuilder().setName('suivi').setDescription('Voir tes devis, commandes et projets.'),
+  new SlashCommandBuilder().setName('projet-reparer').setDescription('Créer ou réparer le projet lié à une commande payée.')
+    .addStringOption(o=>o.setName('commande').setDescription('Exemple : CMD-0001').setRequired(true)),
+
   new SlashCommandBuilder().setName('paiement').setDescription('Gestion de secours des paiements.')
     .addSubcommand(s=>s.setName('en-attente').setDescription('Voir les paiements en attente de validation.'))
     .addSubcommand(s=>s.setName('relancer').setDescription('Renvoyer un paiement à vérifier à la Fondation.')
@@ -1188,8 +1374,18 @@ client.on(Events.InteractionCreate,async interaction=>{
       if(interaction.commandName==='tarif'){if(!hasFeature(interaction.member,c,'tarifs'))return safeInteractionReply(interaction,{content:'❌ Non autorisé.',flags:MessageFlags.Ephemeral});const ch=await guild.channels.fetch(c.channels.tarifs).catch(()=>null);if(!ch?.isTextBased())return safeInteractionReply(interaction,{content:'❌ Salon Tarifs non configuré.',flags:MessageFlags.Ephemeral});await upsertPanel(guild,'tarifs');return safeInteractionReply(interaction,{content:'✅ Tarifs publiés/mis à jour.',flags:MessageFlags.Ephemeral})}
       if(interaction.commandName==='liens'){if(!hasFeature(interaction.member,c,'liens'))return safeInteractionReply(interaction,{content:'❌ Non autorisé.',flags:MessageFlags.Ephemeral});setConfig(guild.id,'settings','linksText',interaction.options.getString('contenu'));await upsertPanel(guild,'liens');return safeInteractionReply(interaction,{content:'✅ Panneau Nos liens mis à jour sans doublon.',flags:MessageFlags.Ephemeral})}
       if(interaction.commandName==='role'){if(!isAdmin(interaction.member)&&!configuredRoleIds(c,['fondateur','cofondateur','directeur_general','directeur']).some(id=>interaction.member.roles.cache.has(id)))return safeInteractionReply(interaction,{content:'❌ Non autorisé.',flags:MessageFlags.Ephemeral});const user=interaction.options.getUser('utilisateur'),grade=interaction.options.getString('grade'),member=await getMember(guild,user.id);if(!member)return safeInteractionReply(interaction,{content:'❌ Utilisateur introuvable.',flags:MessageFlags.Ephemeral});if(interaction.options.getSubcommand()==='attribuer')await assignGrade(member,grade,c);else await removeGrade(member,grade,c);return safeInteractionReply(interaction,{content:'✅ Modification de rôle confirmée par Discord.',flags:MessageFlags.Ephemeral})}
-      if(interaction.commandName==='projet'){if(!isStaff(interaction.member,c))return safeInteractionReply(interaction,{content:'❌ Réservé au personnel.',flags:MessageFlags.Ephemeral});const id=interaction.options.getString('id').toUpperCase(),db=getDb(),p=db.projects[id];if(!p)return safeInteractionReply(interaction,{content:'❌ Projet introuvable.',flags:MessageFlags.Ephemeral});const sub=interaction.options.getSubcommand();let idx=p.stageIndex;if(sub==='avancer')idx=Math.min(PROJECT_STAGES.length-1,idx+1);if(sub==='reculer')idx=Math.max(0,idx-1);if(sub==='etape')idx=Number(interaction.options.getString('etape'));const changed=await changeProjectStage(guild,p,idx);return safeInteractionReply(interaction,{content:changed?'✅ Étape modifiée.':'ℹ️ Le projet est déjà à cette étape.',flags:MessageFlags.Ephemeral})}
+      if(interaction.commandName==='projet'){if(!isStaff(interaction.member,c))return safeInteractionReply(interaction,{content:'❌ Réservé au personnel.',flags:MessageFlags.Ephemeral});const id=interaction.options.getString('id').toUpperCase(),db=getDb(),p=db.projects[id];if(!p)return safeInteractionReply(interaction,{content:'❌ Projet introuvable.',flags:MessageFlags.Ephemeral});const sub=interaction.options.getSubcommand();let idx=p.stageIndex;if(sub==='avancer')idx=Math.min(PROJECT_STAGES.length-1,idx+1);if(sub==='reculer')idx=Math.max(0,idx-1);if(sub==='etape')idx=Number(interaction.options.getString('etape'));const changed=await changeProjectStage(guild,p,idx);const updated=getDb().projects[id];const stage=PROJECT_STAGES[updated.stageIndex];return safeInteractionReply(interaction,{content:changed?`✅ **${id}** déplacé vers **${stage.label}** (${stage.progress}%). Le client a été informé en MP.`:'ℹ️ Le projet est déjà à cette étape.',flags:MessageFlags.Ephemeral})}
       if(interaction.commandName==='suivi'){return showTracking(interaction,'projects')}
+      if(interaction.commandName==='projet-reparer'){
+        if(!isStaff(interaction.member,c))return safeInteractionReply(interaction,{content:'❌ Réservé au personnel.',flags:MessageFlags.Ephemeral});
+        const orderId=interaction.options.getString('commande').trim().toUpperCase();
+        const db=getDb(),order=db.orders[orderId];
+        if(!order)return safeInteractionReply(interaction,{content:`❌ Commande **${orderId}** introuvable.`,flags:MessageFlags.Ephemeral});
+        if(!['Payée','Projet créé','En analyse','En développement','En tests','En corrections','Terminée','En livraison','Archivée'].includes(order.status)&&order.paymentStatus!=='Validé')
+          return safeInteractionReply(interaction,{content:`❌ La commande **${orderId}** n'a pas de paiement validé.`,flags:MessageFlags.Ephemeral});
+        const project=await createProject(guild,order);
+        return safeInteractionReply(interaction,{content:`✅ Projet lié/réparé : **${project.id}** pour **${orderId}**.`,flags:MessageFlags.Ephemeral});
+      }
       if(interaction.commandName==='sondage'){if(!hasFeature(interaction.member,c,'sondages'))return safeInteractionReply(interaction,{content:'❌ Non autorisé.',flags:MessageFlags.Ephemeral});const ch=await guild.channels.fetch(c.channels.sondages).catch(()=>null);if(!ch?.isTextBased())return safeInteractionReply(interaction,{content:'❌ Salon Sondages non configuré.',flags:MessageFlags.Ephemeral});const q=interaction.options.getString('question'),answers=interaction.options.getString('reponses').split('|').map(x=>x.trim()).filter(Boolean).slice(0,10),type=interaction.options.getString('type'),duration=interaction.options.getInteger('duree');if(answers.length<2)return safeInteractionReply(interaction,{content:'❌ Il faut au moins 2 réponses séparées par |.',flags:MessageFlags.Ephemeral});const pollId=`poll-${Date.now()}`;const menu=new StringSelectMenuBuilder().setCustomId(`poll_vote:${pollId}:${type}`).setPlaceholder(type==='multiple'?'Choisis une ou plusieurs réponses':'Choisis une réponse').setMinValues(1).setMaxValues(type==='multiple'?answers.length:1).addOptions(answers.map((a,i)=>({label:a.slice(0,100),value:String(i)})));const m=await ch.send({embeds:[embed('📊 Sondage',`**${q}**\n${duration?`Durée : ${duration} min`:''}`)],components:[new ActionRowBuilder().addComponents(menu)]});const db=getDb();db.polls[pollId]={id:pollId,guildId:guild.id,messageId:m.id,channelId:ch.id,question:q,answers,votes:{},endsAt:duration?Date.now()+duration*60000:null};writeJson(DB_FILE,db);return safeInteractionReply(interaction,{content:'✅ Sondage publié.',flags:MessageFlags.Ephemeral})}
       if(interaction.commandName==='offre'){if(!hasFeature(interaction.member,c,'offres'))return safeInteractionReply(interaction,{content:'❌ Non autorisé.',flags:MessageFlags.Ephemeral});const ch=await guild.channels.fetch(c.channels.offres_speciales).catch(()=>null);if(!ch?.isTextBased())return safeInteractionReply(interaction,{content:'❌ Salon Offres spéciales non configuré.',flags:MessageFlags.Ephemeral});const id=nextId('offers','OFFRE'),o={id,guildId:guild.id,title:interaction.options.getString('titre'),description:interaction.options.getString('description'),offer:interaction.options.getString('offre'),initial:interaction.options.getNumber('prix_initial'),promo:interaction.options.getNumber('prix_promo'),end:interaction.options.getString('fin'),quantity:interaction.options.getInteger('quantite'),createdAt:new Date().toISOString()};const db=getDb();db.offers[id]=o;writeJson(DB_FILE,db);await ch.send({embeds:[embed(`🔥 ${o.title}`,`${o.description}\n\nOffre : **${o.offer}**\nPrix initial : ~~${o.initial.toFixed(2)} €~~\nPrix promo : **${o.promo.toFixed(2)} €**${o.end?`\nFin : **${o.end}**`:''}${o.quantity?`\nQuantité : **${o.quantity}**`:''}`,0xED4245)]});return safeInteractionReply(interaction,{content:`✅ Offre ${id} publiée.`,flags:MessageFlags.Ephemeral})}
       if(interaction.commandName==='design'){if(!isStaff(interaction.member,c))return safeInteractionReply(interaction,{content:'❌ Réservé au personnel.',flags:MessageFlags.Ephemeral});const id=nextId('designs','DESIGN'),d={id,guildId:guild.id,type:interaction.options.getString('type'),title:interaction.options.getString('titre'),description:interaction.options.getString('description'),userId:interaction.options.getUser('client')?.id||null,claimedBy:interaction.user.id,status:'À faire',createdAt:new Date().toISOString()};const db=getDb();db.designs[id]=d;writeJson(DB_FILE,db);for(const key of ['creations',d.type]){const ch=await guild.channels.fetch(c.channels[key]).catch(()=>null);if(ch?.isTextBased())await ch.send({embeds:[designEmbed(d)],components:designControls(d)})}return safeInteractionReply(interaction,{content:`✅ Projet design ${id} créé.`,flags:MessageFlags.Ephemeral})}
@@ -1374,7 +1570,7 @@ client.on(Events.InteractionCreate,async interaction=>{
       }
       if(interaction.customId.startsWith('payment_from_order:')){const orderId=interaction.customId.split(':')[1];const modal=new ModalBuilder().setCustomId(`payment_order_modal:${orderId}`).setTitle('J’ai payé');modal.addComponents(new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('proof').setLabel('Référence / preuve').setStyle(TextInputStyle.Paragraph).setRequired(true)));return interaction.showModal(modal)}
       if(interaction.customId.startsWith('payment_')){const[action,id]=interaction.customId.split(':'),db=getDb(),p=db.payments[id];if(!p)return safeInteractionReply(interaction,{content:'❌ Paiement introuvable.',flags:MessageFlags.Ephemeral});const guild=await getGuild(p.guildId),c=getConfig(p.guildId),member=await getMember(guild,interaction.user.id);if(!isStaff(member,c))return safeInteractionReply(interaction,{content:'❌ Réservé au personnel.',flags:MessageFlags.Ephemeral});if(action==='payment_accept'){const r=await validatePayment(guild,id,interaction.user.id);const latest=getDb(),validatedPayment=latest.payments[id],validatedOrder=validatedPayment?latest.orders[validatedPayment.orderId]:null,project=validatedOrder?.projectId?latest.projects[validatedOrder.projectId]:null;if(!r.already&&validatedOrder){await notifyOrderClient(validatedOrder,`✅ Paiement validé — ${id}`,`Votre paiement **${id}** a été confirmé.\n\nCommande : **${validatedOrder.id}**\nStatut : **Payée**\nProjet créé : **${project?.id||validatedOrder.projectId||'En cours de création'}**\n\nMerci pour votre confiance. Votre projet entre maintenant dans notre processus de réalisation.`);}return safeInteractionReply(interaction,{content:r.already?'ℹ️ Paiement déjà validé, aucun doublon créé.':`✅ Paiement validé.\n📦 Commande : **${validatedOrder?.id||'—'}** → **Payée**\n🚀 Projet : **${project?.id||validatedOrder?.projectId||'Créé'}**\n🧾 Vente, facture, fiche client et statistiques mises à jour.`,flags:MessageFlags.Ephemeral})}if(action==='payment_refuse'){p.status='Refusé';db.payments[id]=p;writeJson(DB_FILE,db);await sendDm(p.userId,{content:`❌ Paiement ${id} refusé.`});return safeInteractionReply(interaction,{content:'✅ Paiement refusé.',flags:MessageFlags.Ephemeral})}if(action==='payment_newproof'){await sendDm(p.userId,{content:`⚠️ Une nouvelle preuve est demandée pour ${id}.`});return safeInteractionReply(interaction,{content:'✅ Demande envoyée.',flags:MessageFlags.Ephemeral})}if(action==='payment_contact'){const modal=new ModalBuilder().setCustomId(`contact_modal:payments:${id}`).setTitle('Contacter le client');modal.addComponents(new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('text').setLabel('Message').setStyle(TextInputStyle.Paragraph).setRequired(true)));return interaction.showModal(modal)}}
-      if(interaction.customId.startsWith('project_')){const[action,id]=interaction.customId.split(':'),db=getDb(),p=db.projects[id];if(!p)return safeInteractionReply(interaction,{content:'❌ Projet introuvable.',flags:MessageFlags.Ephemeral});const guild=await getGuild(p.guildId),c=getConfig(p.guildId),member=await getMember(guild,interaction.user.id);if(!isStaff(member,c))return safeInteractionReply(interaction,{content:'❌ Réservé au personnel.',flags:MessageFlags.Ephemeral});if(action==='project_claim'){p.claimedBy=interaction.user.id;db.projects[id]=p;writeJson(DB_FILE,db);await saveProjectCards(guild,p);await sendDm(p.userId,{embeds:[embed(`🚀 Projet ${p.id} pris en charge`,`Votre projet **${p.id}** est maintenant pris en charge par notre équipe.`)]});return safeInteractionReply(interaction,{content:'✅ Projet pris.',flags:MessageFlags.Ephemeral})}if(action==='project_prev'||action==='project_next'){const idx=action==='project_prev'?Math.max(0,p.stageIndex-1):Math.min(PROJECT_STAGES.length-1,p.stageIndex+1);const changed=await changeProjectStage(guild,p,idx);return safeInteractionReply(interaction,{content:changed?'✅ Étape modifiée.':'ℹ️ Étape inchangée.',flags:MessageFlags.Ephemeral})}if(action==='project_contact'){const modal=new ModalBuilder().setCustomId(`contact_modal:projects:${id}`).setTitle('Contacter le client');modal.addComponents(new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('text').setLabel('Message').setStyle(TextInputStyle.Paragraph).setRequired(true)));return interaction.showModal(modal)}}
+      if(interaction.customId.startsWith('project_')){const[action,id]=interaction.customId.split(':'),db=getDb(),p=db.projects[id];if(!p)return safeInteractionReply(interaction,{content:'❌ Projet introuvable.',flags:MessageFlags.Ephemeral});const guild=await getGuild(p.guildId),c=getConfig(p.guildId),member=await getMember(guild,interaction.user.id);if(!isStaff(member,c))return safeInteractionReply(interaction,{content:'❌ Réservé au personnel.',flags:MessageFlags.Ephemeral});if(action==='project_claim'){p.claimedBy=interaction.user.id;p.updatedAt=new Date().toISOString();db.projects[id]=p;writeJson(DB_FILE,db);await syncProjectCardsSafe(guild,p,'Prise en charge projet');await sendDm(p.userId,{embeds:[embed(`🚀 Projet ${p.id} pris en charge`,`Bonne nouvelle, votre projet **${p.id}** est maintenant pris en charge par notre équipe.\nÉtape actuelle : **${PROJECT_STAGES[p.stageIndex].label}**.`)]});return safeInteractionReply(interaction,{content:'✅ Projet pris en charge et client informé.',flags:MessageFlags.Ephemeral})}if(action==='project_prev'||action==='project_next'){const idx=action==='project_prev'?Math.max(0,p.stageIndex-1):Math.min(PROJECT_STAGES.length-1,p.stageIndex+1);const changed=await changeProjectStage(guild,p,idx);return safeInteractionReply(interaction,{content:changed?'✅ Étape modifiée.':'ℹ️ Étape inchangée.',flags:MessageFlags.Ephemeral})}if(action==='project_contact'){const modal=new ModalBuilder().setCustomId(`contact_modal:projects:${id}`).setTitle('Contacter le client');modal.addComponents(new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('text').setLabel('Message').setStyle(TextInputStyle.Paragraph).setRequired(true)));return interaction.showModal(modal)}}
       if(interaction.customId.startsWith('test_status:')){const parts=interaction.customId.split(':'),id=parts[1],status=parts.slice(2).join(':'),db=getDb(),t=db.tests[id];if(!t)return safeInteractionReply(interaction,{content:'❌ Test introuvable.',flags:MessageFlags.Ephemeral});const guild=await getGuild(t.guildId),c=getConfig(t.guildId),member=await getMember(guild,interaction.user.id);if(interaction.user.id!==t.userId&&!isStaff(member,c))return safeInteractionReply(interaction,{content:'❌ Tu ne peux modifier que tes tests.',flags:MessageFlags.Ephemeral});t.status=status;db.tests[id]=t;writeJson(DB_FILE,db);await interaction.update({embeds:[testEmbed(t)],components:testControls(t)});await sendDm(t.userId,{embeds:[embed(`🧪 Mise à jour ${id}`,`Statut : **${status}**`)]});return}
       if(interaction.customId.startsWith('bug_status:')){const parts=interaction.customId.split(':'),id=parts[1],status=parts.slice(2).join(':'),db=getDb(),b=db.bugs[id];if(!b)return safeInteractionReply(interaction,{content:'❌ Bug introuvable.',flags:MessageFlags.Ephemeral});const guild=await getGuild(b.guildId),c=getConfig(b.guildId),member=await getMember(guild,interaction.user.id);if(interaction.user.id!==b.userId&&!isStaff(member,c))return safeInteractionReply(interaction,{content:'❌ Tu ne peux modifier que tes bugs.',flags:MessageFlags.Ephemeral});b.status=status;db.bugs[id]=b;writeJson(DB_FILE,db);await interaction.update({embeds:[bugEmbed(b)],components:bugControls(b)});await sendDm(b.userId,{embeds:[embed(`🐞 Mise à jour ${id}`,`Statut : **${status}**`)]});return}
       if(interaction.customId.startsWith('ticket_')){const[action,id]=interaction.customId.split(':'),db=getDb(),t=db.tickets[id];if(!t)return safeInteractionReply(interaction,{content:'❌ Ticket introuvable.',flags:MessageFlags.Ephemeral});const guild=await getGuild(t.guildId),c=getConfig(t.guildId),member=await getMember(guild,interaction.user.id);if(!isStaff(member,c))return safeInteractionReply(interaction,{content:'❌ Réservé au personnel.',flags:MessageFlags.Ephemeral});const ch=await guild.channels.fetch(t.channelId).catch(()=>null);if(action==='ticket_claim'){t.claimedBy=interaction.user.id;db.tickets[id]=t;writeJson(DB_FILE,db);return safeInteractionReply(interaction,{content:`✅ Ticket pris par ${interaction.user}.`})}if(action==='ticket_contact'){const modal=new ModalBuilder().setCustomId(`contact_modal:tickets:${id}`).setTitle('Contacter le client');modal.addComponents(new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('text').setLabel('Message').setStyle(TextInputStyle.Paragraph).setRequired(true)));return interaction.showModal(modal)}if(action==='ticket_member_add'||action==='ticket_member_remove'){return safeInteractionReply(interaction,{content:'Choisis un utilisateur :',components:[new ActionRowBuilder().addComponents(new UserSelectMenuBuilder().setCustomId(`${action}_select:${id}`).setPlaceholder('Sélectionner un utilisateur').setMinValues(1).setMaxValues(1))],flags:MessageFlags.Ephemeral})}if(action==='ticket_rename'){const modal=new ModalBuilder().setCustomId(`ticket_rename_modal:${id}`).setTitle('Renommer le ticket');modal.addComponents(new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('name').setLabel('Nouveau nom').setStyle(TextInputStyle.Short).setRequired(true)));return interaction.showModal(modal)}if(action==='ticket_close'){t.status='Fermé';db.tickets[id]=t;writeJson(DB_FILE,db);if(ch)await ch.permissionOverwrites.edit(t.userId,{SendMessages:false});return safeInteractionReply(interaction,{content:'🔒 Ticket fermé.'})}if(action==='ticket_reopen'){t.status='Ouvert';db.tickets[id]=t;writeJson(DB_FILE,db);if(ch)await ch.permissionOverwrites.edit(t.userId,{SendMessages:true});return safeInteractionReply(interaction,{content:'🔓 Ticket rouvert.'})}if(action==='ticket_archive'){t.status='Archivé';db.tickets[id]=t;writeJson(DB_FILE,db);if(ch)await ch.setName(`archive-${ch.name}`.slice(0,100));return safeInteractionReply(interaction,{content:'📁 Ticket archivé.'})}}
