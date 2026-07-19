@@ -663,6 +663,27 @@ async function createInvoice(guild,o,amount){
 }
 
 
+
+function buildPaymentReviewPayload(payment,order){
+  return {
+    embeds:[embed(
+      `💳 ${payment.id}`,
+      `Commande : **${payment.orderId}**\n`+
+      `Client : <@${payment.userId}>\n`+
+      `Montant attendu : **${order?.price==null?'Non défini':`${Number(order.price).toFixed(2)} €`}**\n`+
+      `Statut : **${payment.status}**\n\n`+
+      `Preuve / référence :\n${payment.proof||'Aucune preuve fournie'}`,
+      0xF39C12
+    )],
+    components:[new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId(`payment_accept:${payment.id}`).setLabel('Valider').setStyle(ButtonStyle.Success),
+      new ButtonBuilder().setCustomId(`payment_refuse:${payment.id}`).setLabel('Refuser').setStyle(ButtonStyle.Danger),
+      new ButtonBuilder().setCustomId(`payment_newproof:${payment.id}`).setLabel('Nouvelle preuve').setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId(`payment_contact:${payment.id}`).setLabel('Contacter').setStyle(ButtonStyle.Secondary)
+    )]
+  };
+}
+
 async function notifyFoundationPaymentDM(guild,payment,paymentPayload){
   const c=getConfig(guild.id);
   const foundationRoleIds=[c.roles.pole_fondation,c.roles.fondateur,c.roles.cofondateur].filter(Boolean);
@@ -990,6 +1011,11 @@ const commands=[
   new SlashCommandBuilder().setName('role').setDescription('Gérer les grades internes.').addSubcommand(s=>s.setName('attribuer').setDescription('Attribuer un grade et son pôle.').addUserOption(o=>o.setName('utilisateur').setDescription('Utilisateur').setRequired(true)).addStringOption(o=>o.setName('grade').setDescription('Grade').setRequired(true).setAutocomplete(true))).addSubcommand(s=>s.setName('retirer').setDescription('Retirer un grade et éventuellement son pôle.').addUserOption(o=>o.setName('utilisateur').setDescription('Utilisateur').setRequired(true)).addStringOption(o=>o.setName('grade').setDescription('Grade').setRequired(true).setAutocomplete(true))),
   new SlashCommandBuilder().setName('projet').setDescription('Gestion manuelle d’un projet.').addSubcommand(s=>s.setName('avancer').setDescription('Avancer un projet.').addStringOption(o=>o.setName('id').setDescription('PROJ-0001').setRequired(true))).addSubcommand(s=>s.setName('reculer').setDescription('Reculer un projet.').addStringOption(o=>o.setName('id').setDescription('PROJ-0001').setRequired(true))).addSubcommand(s=>s.setName('etape').setDescription('Définir une étape.').addStringOption(o=>o.setName('id').setDescription('PROJ-0001').setRequired(true)).addStringOption(o=>o.setName('etape').setDescription('Étape').setRequired(true).addChoices(...PROJECT_STAGES.map((s,i)=>({name:s.label,value:String(i)}))))),
   new SlashCommandBuilder().setName('suivi').setDescription('Voir tes devis, commandes et projets.'),
+  new SlashCommandBuilder().setName('paiement').setDescription('Gestion de secours des paiements.')
+    .addSubcommand(s=>s.setName('en-attente').setDescription('Voir les paiements en attente de validation.'))
+    .addSubcommand(s=>s.setName('relancer').setDescription('Renvoyer un paiement à vérifier à la Fondation.')
+      .addStringOption(o=>o.setName('id').setDescription('Exemple : PAY-0001').setRequired(true))),
+
   new SlashCommandBuilder().setName('sondage').setDescription('Créer un sondage.').addStringOption(o=>o.setName('question').setDescription('Question').setRequired(true)).addStringOption(o=>o.setName('reponses').setDescription('Réponses séparées par |').setRequired(true)).addStringOption(o=>o.setName('type').setDescription('Type').setRequired(true).addChoices({name:'Choix unique',value:'unique'},{name:'Choix multiple',value:'multiple'})).addIntegerOption(o=>o.setName('duree').setDescription('Durée en minutes').setMinValue(1).setRequired(false)),
   new SlashCommandBuilder().setName('offre').setDescription('Publier une offre spéciale.').addStringOption(o=>o.setName('titre').setDescription('Titre').setRequired(true)).addStringOption(o=>o.setName('description').setDescription('Description').setRequired(true)).addStringOption(o=>o.setName('offre').setDescription('Offre').setRequired(true)).addNumberOption(o=>o.setName('prix_initial').setDescription('Prix initial').setRequired(true)).addNumberOption(o=>o.setName('prix_promo').setDescription('Prix promotionnel').setRequired(true)).addStringOption(o=>o.setName('fin').setDescription('Date de fin').setRequired(false)).addIntegerOption(o=>o.setName('quantite').setDescription('Quantité').setMinValue(1).setRequired(false)),
   new SlashCommandBuilder().setName('design').setDescription('Créer un projet design.').addStringOption(o=>o.setName('type').setDescription('Type').setRequired(true).addChoices({name:'Logo',value:'logos'},{name:'Bannière',value:'bannieres'},{name:'Miniature',value:'miniatures'},{name:'Réseaux sociaux',value:'reseaux_sociaux'})).addStringOption(o=>o.setName('titre').setDescription('Titre').setRequired(true)).addStringOption(o=>o.setName('description').setDescription('Description').setRequired(true)).addUserOption(o=>o.setName('client').setDescription('Client').setRequired(false)),
@@ -1105,6 +1131,58 @@ client.on(Events.InteractionCreate,async interaction=>{
           return interaction.editReply({content:`✅ Permissions appliquées sur tout le serveur.\n\n**Salons configurés modifiés :** ${result.channels}\n**Catégories configurées modifiées :** ${result.categories}\n**Éléments non configurés ou introuvables :** ${result.skipped}${errors}`.slice(0,1900)});
         }
       }
+
+      if(interaction.commandName==='paiement'){
+        const guild=interaction.guild;
+        const c=getConfig(guild.id);
+        const foundationIds=[c.roles.pole_fondation,c.roles.fondateur,c.roles.cofondateur].filter(Boolean);
+        const authorized=isAdmin(interaction.member)||foundationIds.some(id=>interaction.member.roles.cache.has(id));
+        if(!authorized)return safeInteractionReply(interaction,{content:'❌ Réservé à la Fondation / administration.',flags:MessageFlags.Ephemeral});
+
+        const sub=interaction.options.getSubcommand();
+        const db=getDb();
+
+        if(sub==='en-attente'){
+          const pending=Object.values(db.payments).filter(p=>p.guildId===guild.id&&p.status==='En attente');
+          if(!pending.length)return safeInteractionReply(interaction,{content:'✅ Aucun paiement en attente.',flags:MessageFlags.Ephemeral});
+          const content=pending.slice(0,20).map(p=>{
+            const o=db.orders[p.orderId];
+            return `**${p.id}** — **${p.orderId}** — <@${p.userId}> — ${o?.price==null?'Montant non défini':`${Number(o.price).toFixed(2)} €`}`;
+          }).join('\n');
+          return safeInteractionReply(interaction,{embeds:[embed('💳 Paiements en attente',content,0xF39C12)],flags:MessageFlags.Ephemeral});
+        }
+
+        if(sub==='relancer'){
+          const id=interaction.options.getString('id').trim().toUpperCase();
+          const payment=db.payments[id];
+          if(!payment||payment.guildId!==guild.id)return safeInteractionReply(interaction,{content:`❌ Paiement **${id}** introuvable.`,flags:MessageFlags.Ephemeral});
+          if(payment.status!=='En attente')return safeInteractionReply(interaction,{content:`ℹ️ ${id} est déjà **${payment.status}**.`,flags:MessageFlags.Ephemeral});
+
+          const order=db.orders[payment.orderId];
+          const payload=buildPaymentReviewPayload(payment,order);
+          const dmResult=await notifyFoundationPaymentDM(guild,payment,payload);
+
+          let channelSent=false;
+          const channelId=c.channels.fondation||c.channels.acces_total||c.channels.paiements;
+          const ch=channelId?await guild.channels.fetch(channelId).catch(()=>null):null;
+          if(ch?.isTextBased()){
+            const mention=foundationIds.map(r=>`<@&${r}>`).join(' ');
+            await ch.send({
+              content:`${mention}${mention?'\n':''}🔁 **Relance paiement à vérifier — ${id}**`,
+              embeds:payload.embeds,
+              components:payload.components,
+              allowedMentions:{roles:foundationIds}
+            }).catch(()=>null);
+            channelSent=true;
+          }
+
+          return safeInteractionReply(interaction,{
+            content:`✅ Relance **${id}** effectuée.\n📩 MP Fondation envoyés : **${dmResult.sent}**\n❌ MP impossibles : **${dmResult.failed}**\n📢 Copie dans salon : **${channelSent?'Oui':'Non'}**`,
+            flags:MessageFlags.Ephemeral
+          });
+        }
+      }
+
       if(interaction.commandName==='panneaux'){if(!isStaff(interaction.member,c))return safeInteractionReply(interaction,{content:'❌ Réservé au personnel.',flags:MessageFlags.Ephemeral});const sub=interaction.options.getSubcommand();const r=await repairPanels(guild,sub==='mettre-a-jour');return safeInteractionReply(interaction,{content:`✅ Panneaux : ${r.created} créés, ${r.updated} mis à jour, ${r.skipped} ignorés.`,flags:MessageFlags.Ephemeral})}
       if(interaction.commandName==='version'){if(!isAdmin(interaction.member)&&!configuredRoleIds(c,['fondateur','cofondateur']).some(id=>interaction.member.roles.cache.has(id)))return safeInteractionReply(interaction,{content:'❌ Réservé à la Fondation.',flags:MessageFlags.Ephemeral});migrateConfig(readJson(CONFIG_FILE));getDb();const r=await repairPanels(guild,false);return safeInteractionReply(interaction,{content:`✅ Migration terminée sans suppression. ${r.created} nouveaux panneaux installés, ${r.skipped} conservés.`,flags:MessageFlags.Ephemeral})}
       if(interaction.commandName==='tarif'){if(!hasFeature(interaction.member,c,'tarifs'))return safeInteractionReply(interaction,{content:'❌ Non autorisé.',flags:MessageFlags.Ephemeral});const ch=await guild.channels.fetch(c.channels.tarifs).catch(()=>null);if(!ch?.isTextBased())return safeInteractionReply(interaction,{content:'❌ Salon Tarifs non configuré.',flags:MessageFlags.Ephemeral});await upsertPanel(guild,'tarifs');return safeInteractionReply(interaction,{content:'✅ Tarifs publiés/mis à jour.',flags:MessageFlags.Ephemeral})}
