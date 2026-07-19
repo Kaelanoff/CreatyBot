@@ -646,6 +646,8 @@ const commands=[
     .addSubcommand(s=>s.setName('objectif').setDescription('Objectif mensuel.').addNumberOption(o=>o.setName('montant').setDescription('Montant').setMinValue(0).setRequired(true)))
     .addSubcommand(s=>s.setName('autorisation').setDescription('Rôle autorisé pour une fonction.').addStringOption(o=>o.setName('fonction').setDescription('Fonction').setRequired(true).addChoices({name:'Liens',value:'liens'},{name:'Annonces',value:'annonces'},{name:'Tarifs',value:'tarifs'},{name:'Offres',value:'offres'},{name:'Sondages',value:'sondages'},{name:'Roadmap',value:'roadmap'})).addRoleOption(o=>o.setName('role').setDescription('Rôle').setRequired(true)))
     .addSubcommand(s=>s.setName('voir').setDescription('Voir la configuration détaillée.')),
+  new SlashCommandBuilder().setName('salon').setDescription('Gestion rapide des permissions de salon.')
+    .addSubcommand(s=>s.setName('perm').setDescription('Appliquer automatiquement les permissions standard d’un salon de chat.').addChannelOption(o=>o.setName('cible').setDescription('Salon à configurer (sinon le salon actuel)').setRequired(false).addChannelTypes(ChannelType.GuildText))),
   new SlashCommandBuilder().setName('panneaux').setDescription('Gestion des panneaux.').addSubcommand(s=>s.setName('reparer').setDescription('Recréer seulement les panneaux manquants.')).addSubcommand(s=>s.setName('mettre-a-jour').setDescription('Mettre à jour les panneaux existants sans doublons.')),
   new SlashCommandBuilder().setName('version').setDescription('Initialiser une nouvelle version.').addSubcommand(s=>s.setName('initialiser').setDescription('Migrer la configuration et installer les nouveaux panneaux sans reset.')),
   new SlashCommandBuilder().setName('tarif').setDescription('Publier les tarifs.'),
@@ -709,6 +711,34 @@ client.on(Events.InteractionCreate,async interaction=>{
         if(sub==='objectif'){setConfig(guild.id,'settings','monthlyGoal',interaction.options.getNumber('montant'));await refreshBusinessPanels(guild);return smartReply(interaction, {content:'✅ Objectif mensuel mis à jour.',flags:MessageFlags.Ephemeral})}
         if(sub==='autorisation'){const fn=interaction.options.getString('fonction'),role=interaction.options.getRole('role');setConfig(guild.id,'permissions',fn,role.id);await safeLog(guild.id,'acces_total',{content:`⚠️ Autorisation **${fn}** modifiée par <@${interaction.user.id}>.`});return smartReply(interaction, {content:`✅ ${fn} autorisé pour ${role}.`,flags:MessageFlags.Ephemeral})}
         if(sub==='voir')return smartReply(interaction, {embeds:[embed('⚙️ Configuration détaillée',configReport(guild.id).slice(0,3900))],flags:MessageFlags.Ephemeral});
+      }
+      if(interaction.commandName==='salon'){
+        if(!isAdmin(interaction.member)&&!configuredRoleIds(c,['fondateur','cofondateur']).some(id=>interaction.member.roles.cache.has(id)))return smartReply(interaction,{content:'❌ Réservé à l’administration/fondation.',flags:MessageFlags.Ephemeral});
+        const sub=interaction.options.getSubcommand();
+        if(sub==='perm'){
+          const target=interaction.options.getChannel('cible')||interaction.channel;
+          if(!target||target.type!==ChannelType.GuildText)return smartReply(interaction,{content:'❌ Choisis un salon textuel classique.',flags:MessageFlags.Ephemeral});
+          const me=guild.members.me||await guild.members.fetchMe();
+          if(!me.permissions.has(PermissionFlagsBits.ManageChannels))return smartReply(interaction,{content:'❌ Je n’ai pas la permission **Gérer les salons**.',flags:MessageFlags.Ephemeral});
+          await target.permissionOverwrites.edit(guild.roles.everyone,{
+            ViewChannel:true,
+            SendMessages:true,
+            ReadMessageHistory:true,
+            AddReactions:true,
+            EmbedLinks:true,
+            AttachFiles:true,
+            UseExternalEmojis:true,
+            UseExternalStickers:true,
+            UseApplicationCommands:true,
+            CreatePublicThreads:true,
+            SendMessagesInThreads:true,
+            ManageChannels:false,
+            ManageMessages:false,
+            ManageWebhooks:false
+          });
+          await journal(guild.id,`Permissions standard de chat appliquées à #${target.name} par <@${interaction.user.id}>`);
+          return smartReply(interaction,{content:`✅ Toutes les permissions standard de chat ont été appliquées à ${target}.`,flags:MessageFlags.Ephemeral});
+        }
       }
       if(interaction.commandName==='panneaux'){if(!isStaff(interaction.member,c))return smartReply(interaction, {content:'❌ Réservé au personnel.',flags:MessageFlags.Ephemeral});const sub=interaction.options.getSubcommand();const r=await repairPanels(guild,sub==='mettre-a-jour');return smartReply(interaction, {content:`✅ Panneaux : ${r.created} créés, ${r.updated} mis à jour, ${r.skipped} ignorés.`,flags:MessageFlags.Ephemeral})}
       if(interaction.commandName==='version'){if(!isAdmin(interaction.member)&&!configuredRoleIds(c,['fondateur','cofondateur']).some(id=>interaction.member.roles.cache.has(id)))return smartReply(interaction, {content:'❌ Réservé à la Fondation.',flags:MessageFlags.Ephemeral});migrateConfig(readJson(CONFIG_FILE));getDb();const r=await repairPanels(guild,false);return smartReply(interaction, {content:`✅ Migration terminée sans suppression. ${r.created} nouveaux panneaux installés, ${r.skipped} conservés.`,flags:MessageFlags.Ephemeral})}
