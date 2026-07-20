@@ -111,7 +111,7 @@ const ROLES = [
   ['pole_design','Pôle Design'],['lead_designer','Lead Designer'],['graphiste','Graphiste'],['uiux_designer','UI/UX Designer'],['monteur','Monteur'],
   ['pole_moderation','Pôle Modération'],['administrateur','Administrateur'],['moderateur','Modérateur'],['assistant_moderateur','Assistant Modérateur'],
   ['pole_clientele','Pôle Clientèle'],['client_premium','Client Premium'],['client','Client'],['prospect','Prospect'],['partenaire','Partenaire'],
-  ['membre','Membre'],['nouveau','Nouveau'],
+  ['membre','Membre'],['nouveau','Nouveau'],['super_membre','Super Membre'],['inviteur','Inviteur'],['super_inviteur','Super Inviteur'],
   ['bot','Bot'],['notifications','Notifications']
 ];
 
@@ -123,7 +123,7 @@ const ROLE_CONFIG_GROUPS = {
   design: ['pole_design','lead_designer','graphiste','uiux_designer','monteur'],
   moderation: ['pole_moderation','administrateur','moderateur','assistant_moderateur'],
   clientele: ['pole_clientele','client_premium','client','prospect','partenaire'],
-  communaute: ['membre','nouveau'],
+  communaute: ['membre','nouveau','super_membre','inviteur','super_inviteur'],
   systeme: ['bot','notifications']
 };
 
@@ -153,7 +153,7 @@ const PERMISSION_GROUPS = {
     'pole_clientele','client_premium','client','prospect','partenaire'
   ],
   community: [
-    'membre','nouveau'
+    'membre','nouveau','super_membre','inviteur','super_inviteur'
   ]
 };
 
@@ -206,7 +206,8 @@ const RULES_TEXT = [
 
 const DEFAULT_DB = () => ({
   counters: { tickets:0, quotes:0, orders:0, payments:0, sales:0, clients:0, invoices:0, projects:0, deliveries:0, tests:0, bugs:0, reviews:0, designs:0, tasks:0, partners:0, contracts:0, decisions:0, offers:0 },
-  tickets:{}, quotes:{}, orders:{}, payments:{}, sales:{}, clients:{}, invoices:{}, projects:{}, deliveries:{}, tests:{}, bugs:{}, reviews:{}, designs:{}, tasks:{}, partners:{}, contracts:{}, decisions:{}, offers:{}, polls:{}
+  tickets:{}, quotes:{}, orders:{}, payments:{}, sales:{}, clients:{}, invoices:{}, projects:{}, deliveries:{}, tests:{}, bugs:{}, reviews:{}, designs:{}, tasks:{}, partners:{}, contracts:{}, decisions:{}, offers:{}, polls:{},
+  inviteStats:{}, inviteJoins:{}, inviteRewards:{}, licenses:{}, licenseCodes:{}
 });
 
 function ensureFiles() {
@@ -245,6 +246,10 @@ function migrateConfig(data) {
     if (typeof c.settings.monthlyGoal !== 'number') c.settings.monthlyGoal = 0;
     if (typeof c.settings.linksText !== 'string') c.settings.linksText = '';
     if (typeof c.settings.monthlyRevenueResetAt !== 'string') c.settings.monthlyRevenueResetAt = '';
+    if (typeof c.settings.serverStarterPrice !== 'number') c.settings.serverStarterPrice = 5;
+    if (typeof c.settings.serverStandardPrice !== 'number') c.settings.serverStandardPrice = 10;
+    if (typeof c.settings.serverPremiumPrice !== 'number') c.settings.serverPremiumPrice = 15;
+    if (typeof c.settings.licenseEnabled !== 'boolean') c.settings.licenseEnabled = false;
   }
   return data;
 }
@@ -423,7 +428,46 @@ function panelDefinition(key, c) {
     suggestion:['💡 Suggestions','Propose une amélioration à l’équipe.',0xF1C40F],
     vos_bots:['🤖 Vos bots','Présente ton bot sans lien externe.',0x5865F2],
     creation_bot:['🤖 Création de bot','Découvre nos offres puis commande ou demande un devis.',0x5865F2],
-    creation_serveur:['💬 Création de serveur Discord','Création ou refonte complète de serveurs Discord.',0x5865F2],
+    tarifs:['💰 Tarifs Creaty',`**Création de bots Discord**
+• Bot Mini : **15 €**
+• Bot Essentiel : **35 €**
+• Bot Avancé : **40 €**
+• Bot Premium : **60 €**
+• Hébergement : **5 €/mois**
+
+**Création de serveurs Discord**
+• Starter : **${Number(c?.settings?.serverStarterPrice??5).toFixed(2)} €**
+• Standard : **${Number(c?.settings?.serverStandardPrice??10).toFixed(2)} €**
+• Premium : **${Number(c?.settings?.serverPremiumPrice??15).toFixed(2)} €**
+
+Le prix d’un serveur de base ne dépasse pas **15 €**.
+Demandez un devis pour un projet personnalisé.`,0xF1C40F],
+
+    creation_serveur:['💬 Création de serveur Discord',`Nous créons ou rénovons votre serveur Discord selon vos besoins.
+
+**Starter — ${Number(c?.settings?.serverStarterPrice??5).toFixed(2)} €**
+• Jusqu’à 10 salons
+• Catégories organisées
+• Rôles et permissions simples
+• Installation d’un bot principal
+
+**Standard — ${Number(c?.settings?.serverStandardPrice??10).toFixed(2)} €**
+• Jusqu’à 25 salons
+• Organisation personnalisée
+• Rôles et permissions complètes
+• Messages professionnels
+• Tickets simples
+• Configuration de plusieurs bots
+
+**Premium — ${Number(c?.settings?.serverPremiumPrice??15).toFixed(2)} €**
+• Jusqu’à 50 salons
+• Structure entièrement personnalisée
+• Permissions avancées
+• Tickets et formulaires
+• Messages et panneaux complets
+• Support après livraison
+
+Le prix du serveur de base ne dépasse pas **15 €**.`,0x5865F2],
     hebergement:['🌐 Hébergement','Hébergement disponible à **5 €/mois**. Le Bot Premium inclut le premier mois.',0x3498DB],
     garantie:['📃 Garantie','Garantie technique de **14 jours après livraison**.',0x95A5A6],
     commander:['📝 Commander','Choisis ton offre puis remplis le formulaire.',0x5865F2],
@@ -1717,6 +1761,26 @@ const commands=[
     .addSubcommand(s=>s.setName('objectif').setDescription('Objectif mensuel.').addNumberOption(o=>o.setName('montant').setDescription('Montant').setMinValue(0).setRequired(true)))
     .addSubcommand(s=>s.setName('autorisation').setDescription('Rôle autorisé pour une fonction.').addStringOption(o=>o.setName('fonction').setDescription('Fonction').setRequired(true).addChoices({name:'Liens',value:'liens'},{name:'Annonces',value:'annonces'},{name:'Tarifs',value:'tarifs'},{name:'Offres',value:'offres'},{name:'Sondages',value:'sondages'},{name:'Roadmap',value:'roadmap'})).addRoleOption(o=>o.setName('role').setDescription('Rôle').setRequired(true)))
     .addSubcommand(s=>s.setName('voir').setDescription('Voir la configuration détaillée.')),
+  new SlashCommandBuilder().setName('invitations').setDescription('Consulter et gérer les invitations.')
+    .addSubcommand(s=>s.setName('voir').setDescription('Voir tes invitations.'))
+    .addSubcommand(s=>s.setName('classement').setDescription('Voir le classement des inviteurs.'))
+    .addSubcommand(s=>s.setName('voir-membre').setDescription('Voir les invitations d’un membre.').addUserOption(o=>o.setName('membre').setDescription('Membre').setRequired(true)))
+    .addSubcommand(s=>s.setName('ajouter').setDescription('Ajouter des invitations manuellement.').addUserOption(o=>o.setName('membre').setDescription('Membre').setRequired(true)).addIntegerOption(o=>o.setName('nombre').setDescription('Nombre').setMinValue(1).setRequired(true)))
+    .addSubcommand(s=>s.setName('retirer').setDescription('Retirer des invitations manuellement.').addUserOption(o=>o.setName('membre').setDescription('Membre').setRequired(true)).addIntegerOption(o=>o.setName('nombre').setDescription('Nombre').setMinValue(1).setRequired(true)))
+    .addSubcommand(s=>s.setName('synchroniser').setDescription('Actualiser le cache des invitations.')),
+  new SlashCommandBuilder().setName('tarif-serveur').setDescription('Gérer les tarifs des serveurs Discord.')
+    .addSubcommand(s=>s.setName('publier').setDescription('Publier ou actualiser les tarifs des serveurs.'))
+    .addSubcommand(s=>s.setName('modifier').setDescription('Modifier les trois formules.')
+      .addNumberOption(o=>o.setName('starter').setDescription('Prix Starter').setMinValue(0).setMaxValue(15).setRequired(true))
+      .addNumberOption(o=>o.setName('standard').setDescription('Prix Standard').setMinValue(0).setMaxValue(15).setRequired(true))
+      .addNumberOption(o=>o.setName('premium').setDescription('Prix Premium').setMinValue(0).setMaxValue(15).setRequired(true))),
+  new SlashCommandBuilder().setName('activer').setDescription('Activer Creaty Bot sur ce serveur.')
+    .addStringOption(o=>o.setName('code').setDescription('Code de licence').setRequired(true)),
+  new SlashCommandBuilder().setName('licence').setDescription('Gestion des licences Creaty Bot.')
+    .addSubcommand(s=>s.setName('creer').setDescription('Créer un code à usage unique.').addIntegerOption(o=>o.setName('jours').setDescription('Durée en jours, vide = illimitée').setMinValue(1).setRequired(false)))
+    .addSubcommand(s=>s.setName('liste').setDescription('Lister les licences et codes.'))
+    .addSubcommand(s=>s.setName('desactiver').setDescription('Désactiver un serveur.').addStringOption(o=>o.setName('serveur').setDescription('ID du serveur').setRequired(true)))
+    .addSubcommand(s=>s.setName('supprimer').setDescription('Supprimer un code.').addStringOption(o=>o.setName('code').setDescription('Code').setRequired(true))),
   new SlashCommandBuilder().setName('salon').setDescription('Gestion globale des permissions des salons.').addSubcommand(s=>s.setName('perm').setDescription('Appliquer automatiquement les permissions à tous les salons et catégories configurés.')),
   new SlashCommandBuilder().setName('panneaux').setDescription('Gestion des panneaux.').addSubcommand(s=>s.setName('reparer').setDescription('Recréer seulement les panneaux manquants.')).addSubcommand(s=>s.setName('mettre-a-jour').setDescription('Mettre à jour les panneaux existants sans doublons.')),
   new SlashCommandBuilder().setName('version').setDescription('Initialiser une nouvelle version.').addSubcommand(s=>s.setName('initialiser').setDescription('Migrer la configuration et installer les nouveaux panneaux sans reset.')),
@@ -1848,6 +1912,180 @@ async function sendInviteTrackerMessage(member,invite){
   });
 }
 
+
+const BOT_FOUNDER_USERNAME='kaelan._.';
+
+function founderId(){
+  return String(process.env.FOUNDER_ID||process.env.BOT_FOUNDER_ID||'').trim();
+}
+
+function isBotFounder(user){
+  const configured=founderId();
+  if(configured)return user?.id===configured;
+  return user?.username===BOT_FOUNDER_USERNAME;
+}
+
+function inviteStatKey(guildId,userId){return `${guildId}:${userId}`;}
+
+function getInviteStat(db,guildId,userId){
+  const key=inviteStatKey(guildId,userId);
+  db.inviteStats[key]||={guildId,userId,active:0,total:0,left:0,manual:0,updatedAt:new Date().toISOString()};
+  return db.inviteStats[key];
+}
+
+async function grantConfiguredRewardRole(guild,userId,roleKey){
+  const c=getConfig(guild.id),roleId=c.roles[roleKey];
+  if(!roleId)return {ok:false,reason:`Rôle ${roleKey} non configuré`};
+  const member=await getMember(guild,userId);
+  if(!member)return {ok:false,reason:'Membre introuvable'};
+  try{
+    await applyRole(member,roleId,'add',guild.id,roleKey);
+    return {ok:true};
+  }catch(error){
+    await logError(guild.id,error,`Récompense invitation ${roleKey} pour ${userId}`);
+    return {ok:false,reason:error.message};
+  }
+}
+
+async function notifyInviteReward(guild,userId,count,title,description){
+  const c=getConfig(guild.id);
+  const ch=c.channels.invite_tracker?await guild.channels.fetch(c.channels.invite_tracker).catch(()=>null):null;
+  if(isUsableTextChannel(ch)){
+    await ch.send({embeds:[embed(title,`<@${userId}> ${description}\n\nInvitations actives : **${count}**`,0xF1C40F)]}).catch(()=>{});
+  }
+  await sendDm(userId,{embeds:[embed(title,description,0xF1C40F)]});
+}
+
+async function createSeventyInviteReward(guild,userId,count){
+  const db=getDb(),key=inviteStatKey(guild.id,userId);
+  db.inviteRewards[key]||={guildId,userId,claimed:{},createdAt:new Date().toISOString()};
+  if(db.inviteRewards[key].claimed?.reward70)return false;
+
+  db.inviteRewards[key].claimed.reward70={
+    unlockedAt:new Date().toISOString(),
+    botReward:true,
+    serverReward:true,
+    status:'À contacter'
+  };
+  writeJson(DB_FILE,db);
+
+  const c=getConfig(guild.id);
+  const foundationIds=configuredRoleIds(c,['pole_fondation','fondateur','cofondateur']);
+  const foundationMention=foundationIds.map(id=>`<@&${id}>`).join(' ');
+  const ch=c.channels.invite_tracker?await guild.channels.fetch(c.channels.invite_tracker).catch(()=>null):null;
+
+  if(isUsableTextChannel(ch)){
+    await ch.send({
+      content:foundationMention||undefined,
+      embeds:[embed(
+        '🏆 Récompense exceptionnelle débloquée',
+        `<@${userId}> a atteint **70 invitations actives**.\n\nRécompenses :\n• Un bot Discord personnalisé\n• Un serveur Discord construit par Creaty\n\nLa Fondation doit contacter le membre pour définir un projet réalisable. La récompense est enregistrée et ne peut être débloquée qu’une seule fois.`,
+        0xF1C40F
+      )],
+      allowedMentions:{roles:foundationIds,users:[userId]}
+    }).catch(()=>{});
+  }
+
+  await sendDm(userId,{embeds:[embed(
+    '🏆 70 invitations — Récompense débloquée',
+    `Félicitations ! Tu as débloqué :\n\n• Un bot Discord personnalisé\n• Un serveur Discord construit par Creaty\n\nNotre équipe va te contacter pour définir les fonctionnalités et la structure réalisables.`,
+    0xF1C40F
+  )]});
+
+  return true;
+}
+
+async function updateInviteRewards(guild,userId){
+  const db=getDb(),stat=getInviteStat(db,guild.id,userId),count=Number(stat.active||0)+Number(stat.manual||0);
+  db.inviteRewards[inviteStatKey(guild.id,userId)]||={guildId:guild.id,userId,claimed:{},createdAt:new Date().toISOString()};
+  const rewards=db.inviteRewards[inviteStatKey(guild.id,userId)];
+
+  const milestones=[
+    {n:5,key:'reward5',role:'super_membre',title:'🌟 Super Membre',text:'a atteint 5 invitations et devient **Super Membre** !'},
+    {n:10,key:'reward10',role:'inviteur',title:'📨 Inviteur',text:'a atteint 10 invitations et devient **Inviteur** !'},
+    {n:50,key:'reward50a',role:'super_inviteur',title:'💎 Super Inviteur',text:'a atteint 50 invitations et devient **Super Inviteur** !'},
+    {n:50,key:'reward50b',role:'client_premium',title:'💎 Premium',text:'a atteint 50 invitations et reçoit également le rôle **Premium** !'}
+  ];
+
+  for(const m of milestones){
+    if(count>=m.n&&!rewards.claimed[m.key]){
+      const granted=await grantConfiguredRewardRole(guild,userId,m.role);
+      rewards.claimed[m.key]={unlockedAt:new Date().toISOString(),roleGranted:granted.ok,reason:granted.reason||null};
+      await notifyInviteReward(guild,userId,count,m.title,m.text);
+    }
+  }
+
+  db.inviteRewards[inviteStatKey(guild.id,userId)]=rewards;
+  writeJson(DB_FILE,db);
+
+  if(count>=70)await createSeventyInviteReward(guild,userId,count);
+}
+
+async function registerInviteJoin(member,invite){
+  if(member.user.bot||!invite?.inviter?.id)return;
+  const db=getDb(),joinKey=inviteStatKey(member.guild.id,member.id);
+  if(db.inviteJoins[joinKey]?.active)return;
+
+  db.inviteJoins[joinKey]={
+    guildId:member.guild.id,
+    memberId:member.id,
+    inviterId:invite.inviter.id,
+    inviteCode:invite.code,
+    joinedAt:new Date().toISOString(),
+    active:true
+  };
+
+  const stat=getInviteStat(db,member.guild.id,invite.inviter.id);
+  stat.active=Number(stat.active||0)+1;
+  stat.total=Number(stat.total||0)+1;
+  stat.updatedAt=new Date().toISOString();
+  writeJson(DB_FILE,db);
+
+  await updateInviteRewards(member.guild,invite.inviter.id);
+}
+
+async function unregisterInviteJoin(member){
+  const db=getDb(),joinKey=inviteStatKey(member.guild.id,member.id),record=db.inviteJoins[joinKey];
+  if(!record?.active)return;
+
+  record.active=false;
+  record.leftAt=new Date().toISOString();
+  db.inviteJoins[joinKey]=record;
+
+  const stat=getInviteStat(db,member.guild.id,record.inviterId);
+  stat.active=Math.max(0,Number(stat.active||0)-1);
+  stat.left=Number(stat.left||0)+1;
+  stat.updatedAt=new Date().toISOString();
+  writeJson(DB_FILE,db);
+}
+
+function licenseForGuild(guildId){
+  const db=getDb();
+  return db.licenses[guildId]||null;
+}
+
+function guildIsLicensed(guildId){
+  if(process.env.GUILD_ID&&guildId===process.env.GUILD_ID)return true;
+  const lic=licenseForGuild(guildId);
+  if(!lic||lic.active!==true)return false;
+  if(lic.expiresAt&&new Date(lic.expiresAt).getTime()<Date.now())return false;
+  return true;
+}
+
+async function sendLicenseRequired(guild){
+  const owner=await guild.fetchOwner().catch(()=>null);
+  const message={
+    embeds:[embed(
+      '🔐 Creaty Bot — Activation requise',
+      `Merci d’avoir ajouté Creaty Bot à **${guild.name}**.\n\nCe serveur n’est pas encore autorisé à utiliser le bot.\nContactez le fondateur : **@${BOT_FOUNDER_USERNAME}**.\n\nUne fois le code reçu, utilisez :\n\`/activer code:VOTRE_CODE\`\n\nTant que le serveur n’est pas activé, les autres commandes restent bloquées.`,
+      0xED4245
+    )]
+  };
+  if(owner)await sendDm(owner.id,message);
+  const ch=guild.systemChannel||guild.channels.cache.find(c=>isUsableTextChannel(c)&&c.permissionsFor(guild.members.me)?.has(PermissionFlagsBits.SendMessages));
+  if(isUsableTextChannel(ch))await ch.send(message).catch(()=>{});
+}
+
 let shuttingDown=false;
 
 async function gracefulShutdown(signal){
@@ -1893,6 +2131,12 @@ client.once(Events.ClientReady, async()=>{
 });
 
 
+
+client.on(Events.GuildCreate,async guild=>{
+  await refreshGuildInviteCache(guild);
+  if(!guildIsLicensed(guild.id))await sendLicenseRequired(guild);
+});
+
 client.on(Events.InviteCreate,async invite=>{
   if(invite.guild)await refreshGuildInviteCache(invite.guild);
 });
@@ -1911,6 +2155,7 @@ client.on(Events.GuildMemberAdd,async member=>{
   // du message de bienvenue et du rôle Nouveau.
   const usedInvite=await detectUsedInvite(guild);
   await sendInviteTrackerMessage(member,usedInvite);
+  await registerInviteJoin(member,usedInvite);
 
   // 1) Attribution du rôle Nouveau si configuré.
   if(c.roles.nouveau){
@@ -1961,6 +2206,8 @@ client.on(Events.GuildMemberRemove,async member=>{
   const c=getConfig(guild.id);
 
   console.log(`👋 Départ détecté : ${member.user.tag} (${member.id}) de ${guild.name}`);
+
+  await unregisterInviteJoin(member);
 
   if(c.channels.depart){
     try{
@@ -2062,6 +2309,97 @@ client.on(Events.InteractionCreate,async interaction=>{
     if(interaction.isChatInputCommand()){
       if(!interaction.deferred&&!interaction.replied) await interaction.deferReply({flags:MessageFlags.Ephemeral});
       const guild=interaction.guild;if(!guild)return safeInteractionReply(interaction,{content:'Commande disponible uniquement sur un serveur.',flags:MessageFlags.Ephemeral});const c=getConfig(guild.id);
+
+      if(!guildIsLicensed(guild.id)&&!['activer','licence'].includes(interaction.commandName)){
+        return safeInteractionReply(interaction,{
+          content:`🔐 Ce serveur n'est pas activé. Contactez **@${BOT_FOUNDER_USERNAME}**, puis utilisez \`/activer code:VOTRE_CODE\`.`,
+          flags:MessageFlags.Ephemeral
+        });
+      }
+
+      if(interaction.commandName==='activer'){
+        const code=interaction.options.getString('code').trim().toUpperCase();
+        const db=getDb(),entry=db.licenseCodes[code];
+        if(!entry||entry.used||entry.active===false)return safeInteractionReply(interaction,{content:'❌ Code invalide, désactivé ou déjà utilisé.',flags:MessageFlags.Ephemeral});
+        if(entry.expiresAt&&new Date(entry.expiresAt).getTime()<Date.now())return safeInteractionReply(interaction,{content:'❌ Ce code a expiré.',flags:MessageFlags.Ephemeral});
+        entry.used=true;entry.usedAt=new Date().toISOString();entry.guildId=guild.id;entry.guildName=guild.name;
+        db.licenseCodes[code]=entry;
+        db.licenses[guild.id]={active:true,code,activatedAt:new Date().toISOString(),expiresAt:entry.expiresAt||null,guildName:guild.name};
+        writeJson(DB_FILE,db);
+        return safeInteractionReply(interaction,{content:'✅ Creaty Bot est maintenant activé sur ce serveur.',flags:MessageFlags.Ephemeral});
+      }
+
+      if(interaction.commandName==='licence'){
+        if(!isBotFounder(interaction.user))return safeInteractionReply(interaction,{content:'❌ Cette commande est réservée au fondateur de Creaty Bot.',flags:MessageFlags.Ephemeral});
+        const sub=interaction.options.getSubcommand(),db=getDb();
+        if(sub==='creer'){
+          const days=interaction.options.getInteger('jours');
+          let code;
+          do{code=`CREATY-${require('crypto').randomBytes(4).toString('hex').toUpperCase()}`;}while(db.licenseCodes[code]);
+          const expiresAt=days?new Date(Date.now()+days*86400000).toISOString():null;
+          db.licenseCodes[code]={code,active:true,used:false,createdAt:new Date().toISOString(),createdBy:interaction.user.id,expiresAt};
+          writeJson(DB_FILE,db);
+          return safeInteractionReply(interaction,{content:`✅ Code créé : \`${code}\`\nDurée : **${days?`${days} jour(s)`:'Illimitée'}**\nUtilisable une seule fois.`,flags:MessageFlags.Ephemeral});
+        }
+        if(sub==='liste'){
+          const codes=Object.values(db.licenseCodes).slice(-15).map(x=>`• \`${x.code}\` — ${x.used?`utilisé sur ${x.guildName||x.guildId}`:(x.active===false?'désactivé':'disponible')}`).join('\n')||'Aucun code.';
+          const licenses=Object.entries(db.licenses).slice(-15).map(([id,x])=>`• **${x.guildName||id}** — ${x.active?'active':'désactivée'}`).join('\n')||'Aucune licence.';
+          return safeInteractionReply(interaction,{content:`**Codes**\n${codes}\n\n**Serveurs**\n${licenses}`.slice(0,1900),flags:MessageFlags.Ephemeral});
+        }
+        if(sub==='desactiver'){
+          const gid=interaction.options.getString('serveur').trim();
+          if(!db.licenses[gid])return safeInteractionReply(interaction,{content:'❌ Licence introuvable.',flags:MessageFlags.Ephemeral});
+          db.licenses[gid].active=false;db.licenses[gid].disabledAt=new Date().toISOString();writeJson(DB_FILE,db);
+          return safeInteractionReply(interaction,{content:`✅ Licence du serveur \`${gid}\` désactivée.`,flags:MessageFlags.Ephemeral});
+        }
+        if(sub==='supprimer'){
+          const code=interaction.options.getString('code').trim().toUpperCase();
+          if(!db.licenseCodes[code])return safeInteractionReply(interaction,{content:'❌ Code introuvable.',flags:MessageFlags.Ephemeral});
+          delete db.licenseCodes[code];writeJson(DB_FILE,db);
+          return safeInteractionReply(interaction,{content:`✅ Code \`${code}\` supprimé.`,flags:MessageFlags.Ephemeral});
+        }
+      }
+
+      if(interaction.commandName==='invitations'){
+        const sub=interaction.options.getSubcommand(),db=getDb();
+        if(sub==='voir'){
+          const s=getInviteStat(db,guild.id,interaction.user.id),count=Number(s.active||0)+Number(s.manual||0);
+          return safeInteractionReply(interaction,{content:`📨 Tu as **${count} invitation(s) active(s)**.\nTotal rejoint : **${s.total||0}**\nDéparts : **${s.left||0}**\nProchaine récompense : **${count<5?'5 — Super Membre':count<10?'10 — Inviteur':count<50?'50 — Premium + Super Inviteur':count<70?'70 — Bot + serveur Creaty':'Toutes débloquées'}**`,flags:MessageFlags.Ephemeral});
+        }
+        if(sub==='classement'){
+          const rows=Object.values(db.inviteStats).filter(x=>x.guildId===guild.id).sort((a,b)=>(Number(b.active||0)+Number(b.manual||0))-(Number(a.active||0)+Number(a.manual||0))).slice(0,10);
+          return safeInteractionReply(interaction,{content:rows.length?rows.map((x,i)=>`**${i+1}.** <@${x.userId}> — **${Number(x.active||0)+Number(x.manual||0)}**`).join('\n'):'Aucune invitation enregistrée.',flags:MessageFlags.Ephemeral});
+        }
+        if(sub==='synchroniser'){
+          if(!isStaff(interaction.member,c))return safeInteractionReply(interaction,{content:'❌ Réservé au personnel.',flags:MessageFlags.Ephemeral});
+          await refreshGuildInviteCache(guild);
+          return safeInteractionReply(interaction,{content:'✅ Cache des invitations actualisé.',flags:MessageFlags.Ephemeral});
+        }
+        if(!isStaff(interaction.member,c))return safeInteractionReply(interaction,{content:'❌ Réservé au personnel.',flags:MessageFlags.Ephemeral});
+        const user=interaction.options.getUser('membre'),stat=getInviteStat(db,guild.id,user.id);
+        if(sub==='voir-membre')return safeInteractionReply(interaction,{content:`📨 <@${user.id}> possède **${Number(stat.active||0)+Number(stat.manual||0)} invitation(s) active(s)**.\nTotal rejoint : **${stat.total||0}**\nDéparts : **${stat.left||0}**`,flags:MessageFlags.Ephemeral});
+        const n=interaction.options.getInteger('nombre');
+        if(sub==='ajouter')stat.manual=Number(stat.manual||0)+n;
+        if(sub==='retirer')stat.manual=Math.max(0,Number(stat.manual||0)-n);
+        stat.updatedAt=new Date().toISOString();db.inviteStats[inviteStatKey(guild.id,user.id)]=stat;writeJson(DB_FILE,db);
+        await updateInviteRewards(guild,user.id);
+        return safeInteractionReply(interaction,{content:`✅ Compteur de <@${user.id}> mis à jour : **${Number(stat.active||0)+Number(stat.manual||0)}** invitation(s).`,flags:MessageFlags.Ephemeral});
+      }
+
+      if(interaction.commandName==='tarif-serveur'){
+        if(!hasFeature(interaction.member,c,'tarifs'))return safeInteractionReply(interaction,{content:'❌ Non autorisé.',flags:MessageFlags.Ephemeral});
+        const sub=interaction.options.getSubcommand();
+        if(sub==='modifier'){
+          const starter=interaction.options.getNumber('starter'),standard=interaction.options.getNumber('standard'),premium=interaction.options.getNumber('premium');
+          setConfig(guild.id,'settings','serverStarterPrice',starter);
+          setConfig(guild.id,'settings','serverStandardPrice',standard);
+          setConfig(guild.id,'settings','serverPremiumPrice',premium);
+        }
+        await upsertPanel(guild,'creation_serveur');
+        await upsertPanel(guild,'tarifs');
+        return safeInteractionReply(interaction,{content:sub==='modifier'?'✅ Tarifs modifiés et panneaux actualisés.':'✅ Panneaux des tarifs serveurs publiés ou actualisés.',flags:MessageFlags.Ephemeral});
+      }
+
       if(interaction.commandName==='config'){
         if(!isAdmin(interaction.member)&&!configuredRoleIds(c,['fondateur','cofondateur']).some(id=>interaction.member.roles.cache.has(id)))return safeInteractionReply(interaction,{content:'❌ Réservé à l’administration/fondation.',flags:MessageFlags.Ephemeral});
         const sub=interaction.options.getSubcommand();
