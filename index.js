@@ -198,6 +198,15 @@ function migrateConfig(data) {
   if (!data.guilds) data.guilds = {};
   for (const c of Object.values(data.guilds)) {
     c.channels ||= {}; c.categories ||= {}; c.roles ||= {}; c.panels ||= {}; c.settings ||= {}; c.permissions ||= {};
+
+    // Migration de secours : si une ancienne version a sauvegardé une clé de salon
+    // ou catégorie directement dans la config du serveur, on la remet au bon endroit.
+    for(const [key] of CHANNELS){
+      if(!c.channels[key] && typeof c[key]==='string') c.channels[key]=c[key];
+    }
+    for(const [key] of CATEGORIES){
+      if(!c.categories[key] && typeof c[key]==='string') c.categories[key]=c[key];
+    }
     if (typeof c.settings.paypalUrl !== 'string') c.settings.paypalUrl = '';
     if (typeof c.settings.paymentMessage !== 'string') c.settings.paymentMessage = '';
     if (typeof c.settings.monthlyGoal !== 'number') c.settings.monthlyGoal = 0;
@@ -515,7 +524,38 @@ function orderControls(o){
   )];
 }
 
-function projectEmbed(p){const s=PROJECT_STAGES[p.stageIndex];return embed(`${s.emoji} ${p.id} — ${p.projectName}`,[`Client : <@${p.userId}>`,`Commande : **${p.orderId}**`,`Offre : **${p.offerLabel||'—'}**`,`Responsable : ${p.claimedBy?`<@${p.claimedBy}>`:'Aucun'}`,`Étape : **${s.label}**`,`Progression : **${s.progress}%**`].join('\n'))}
+function isDeliveryStageIndex(index){
+  return PROJECT_STAGES[index]?.key==='livraisons_projets';
+}
+
+function buildDeliveryModal(projectId){
+  const modal=new ModalBuilder()
+    .setCustomId(`project_delivery_modal:${projectId}`)
+    .setTitle('Livrer le projet');
+
+  modal.addComponents(
+    new ActionRowBuilder().addComponents(
+      new TextInputBuilder()
+        .setCustomId('delivery_link')
+        .setLabel('Lien de livraison')
+        .setPlaceholder('https://...')
+        .setStyle(TextInputStyle.Short)
+        .setRequired(true)
+    ),
+    new ActionRowBuilder().addComponents(
+      new TextInputBuilder()
+        .setCustomId('delivery_message')
+        .setLabel('Petit message pour le client')
+        .setPlaceholder('Merci pour votre confiance !')
+        .setStyle(TextInputStyle.Paragraph)
+        .setRequired(false)
+    )
+  );
+
+  return modal;
+}
+
+function projectEmbed(p){const s=PROJECT_STAGES[p.stageIndex];return embed(`${s.emoji} ${p.id} — ${p.projectName}`,[`Client : <@${p.userId}>`,`Commande : **${p.orderId}**`,`Offre : **${p.offerLabel||'—'}**`,`Responsable : ${p.claimedBy?`<@${p.claimedBy}>`:'Aucun'}`,`Étape : **${s.label}**`,`Progression : **${s.progress}%**`,p.deliveryLink?`Lien de livraison : ${p.deliveryLink}`:null].filter(Boolean).join('\n'))}
 function projectControls(p){return [new ActionRowBuilder().addComponents(
   new ButtonBuilder().setCustomId(`project_claim:${p.id}`).setLabel('Prendre le projet').setStyle(ButtonStyle.Primary),
   new ButtonBuilder().setCustomId(`project_prev:${p.id}`).setLabel('Étape précédente').setStyle(ButtonStyle.Secondary).setDisabled(p.stageIndex<=0),
@@ -715,7 +755,7 @@ async function changeProjectStage(guild,p,newIndex){
   if(now.key==='tests_projets')clientMsg+='\n\nVotre projet est maintenant en phase de tests.';
   if(now.key==='corrections')clientMsg+='\n\nNotre équipe applique actuellement les corrections nécessaires.';
   if(now.key==='termines')clientMsg+='\n\n✅ Votre projet est terminé. Il se prépare maintenant pour la livraison.';
-  if(now.key==='livraisons_projets')clientMsg+='\n\n📦 Votre commande est maintenant en cours de livraison.';
+  if(now.key==='livraisons_projets'&&!p.deliveryLink)clientMsg+='\n\n📦 Votre commande est maintenant en cours de livraison.';
   if(now.key==='archives')clientMsg+='\n\n📁 Votre projet a été archivé. Son historique reste enregistré.';
 
   await sendDm(p.userId,{embeds:[embed(`🚀 Mise à jour ${p.id}`,clientMsg,0x3498DB)]});
@@ -1177,7 +1217,10 @@ function categoryPermissionProfile(key){
   return {public:false,mode:'chat',roles:staff};
 }
 
-async function applyAllConfiguredPermissions(guild,c){
+async function applyAllConfiguredPermissions(guild,c=null){
+  // Toujours relire la configuration persistée au moment de l'application.
+  // Cela évite d'utiliser un ancien objet c gardé en mémoire.
+  c=getConfig(guild.id);
   const me=guild.members.me||await guild.members.fetchMe();
   if(!me.permissions.has(PermissionFlagsBits.ManageChannels))
     throw new Error('Le bot ne possède pas la permission Gérer les salons.');
@@ -1186,7 +1229,16 @@ async function applyAllConfiguredPermissions(guild,c){
     ROLES.map(([key])=>[key,c.roles[key]]).filter(([,id])=>Boolean(id))
   );
   const managedRoleIds=new Set([...configuredRoleMap.values()]);
-  const result={channels:0,categories:0,skipped:0,errors:[]};
+  const configuredChannelIds=CHANNELS.filter(([key])=>Boolean(c.channels?.[key]));
+  const configuredCategoryIds=CATEGORIES.filter(([key])=>Boolean(c.categories?.[key]));
+  const result={
+    channels:0,
+    categories:0,
+    skipped:0,
+    errors:[],
+    configuredChannels:configuredChannelIds.length,
+    configuredCategories:configuredCategoryIds.length
+  };
 
   const readPerms=[
     PermissionFlagsBits.ViewChannel,
@@ -1536,6 +1588,7 @@ function buttonMustAnswerDirectly(customId) {
 
   if (directIds.has(customId)) return true;
   if (customId.startsWith('payment_from_order:')) return true;
+  if (customId.startsWith('project_next:')) return true;
 
   const [action] = customId.split(':');
   if ([
@@ -1582,7 +1635,7 @@ client.on(Events.InteractionCreate,async interaction=>{
       if(interaction.commandName==='config'){
         if(!isAdmin(interaction.member)&&!configuredRoleIds(c,['fondateur','cofondateur']).some(id=>interaction.member.roles.cache.has(id)))return safeInteractionReply(interaction,{content:'❌ Réservé à l’administration/fondation.',flags:MessageFlags.Ephemeral});
         const sub=interaction.options.getSubcommand();
-        if(sub==='salon'){const type=interaction.options.getString('type'),target=interaction.options.getChannel('cible');const catEntry=CATEGORIES.find(([k])=>k===type),channelEntry=CHANNELS.find(([k])=>k===type);const isCat=Boolean(catEntry);const label=(catEntry||channelEntry)?.[1]||type;if(isCat&&target.type!==ChannelType.GuildCategory)return safeInteractionReply(interaction,{content:`❌ **${label}** doit être configuré avec une vraie catégorie Discord.`,flags:MessageFlags.Ephemeral});if(!isCat&&target.type===ChannelType.GuildCategory)return safeInteractionReply(interaction,{content:`❌ **${label}** doit être configuré avec un salon, pas une catégorie.`,flags:MessageFlags.Ephemeral});setConfig(guild.id,isCat?'categories':'channels',type,target.id);await journal(guild.id,`Configuration ${label} (${type}) → ${target.id}`);return safeInteractionReply(interaction,{content:`✅ **${label}** configuré sur ${target}.`,flags:MessageFlags.Ephemeral})}
+        if(sub==='salon'){const type=interaction.options.getString('type'),target=interaction.options.getChannel('cible');const catEntry=CATEGORIES.find(([k])=>k===type),channelEntry=CHANNELS.find(([k])=>k===type);const isCat=Boolean(catEntry);const label=(catEntry||channelEntry)?.[1]||type;if(isCat&&target.type!==ChannelType.GuildCategory)return safeInteractionReply(interaction,{content:`❌ **${label}** doit être configuré avec une vraie catégorie Discord.`,flags:MessageFlags.Ephemeral});if(!isCat&&target.type===ChannelType.GuildCategory)return safeInteractionReply(interaction,{content:`❌ **${label}** doit être configuré avec un salon, pas une catégorie.`,flags:MessageFlags.Ephemeral});setConfig(guild.id,isCat?'categories':'channels',type,target.id);const verifyConfig=getConfig(guild.id);const savedId=isCat?verifyConfig.categories?.[type]:verifyConfig.channels?.[type];if(savedId!==target.id)return safeInteractionReply(interaction,{content:`❌ Erreur de sauvegarde : **${label}** n'a pas été enregistré correctement.`,flags:MessageFlags.Ephemeral});await journal(guild.id,`Configuration ${label} (${type}) → ${target.id}`);return safeInteractionReply(interaction,{content:`✅ **${label}** configuré sur ${target}.\n💾 Configuration enregistrée et vérifiée.`,flags:MessageFlags.Ephemeral})}
         if(sub==='role'){const type=interaction.options.getString('type'),role=interaction.options.getRole('role');const roleLabel=ROLES.find(([k])=>k===type)?.[1]||type;setConfig(guild.id,'roles',type,role.id);await journal(guild.id,`Configuration rôle ${roleLabel} (${type}) → ${role.id}`);if(['fondateur','cofondateur','directeur','directeur_general'].includes(type))await safeLog(guild.id,'acces_total',{content:`⚠️ Configuration sensible : rôle **${roleLabel}** modifié par <@${interaction.user.id}>.`});return safeInteractionReply(interaction,{content:`✅ **${roleLabel}** configuré sur ${role}.`,flags:MessageFlags.Ephemeral})}
         if(sub==='paiement'){setConfig(guild.id,'settings','paypalUrl',interaction.options.getString('lien'));setConfig(guild.id,'settings','paymentMessage',interaction.options.getString('message')||'Utilise le lien PayPal officiel ci-dessous.');await safeLog(guild.id,'acces_total',{content:`⚠️ Lien PayPal modifié par <@${interaction.user.id}>.`});return safeInteractionReply(interaction,{content:'✅ Paiement PayPal configuré.',flags:MessageFlags.Ephemeral})}
         if(sub==='objectif'){setConfig(guild.id,'settings','monthlyGoal',interaction.options.getNumber('montant'));await refreshBusinessPanels(guild);return safeInteractionReply(interaction,{content:'✅ Objectif mensuel mis à jour.',flags:MessageFlags.Ephemeral})}
@@ -1592,10 +1645,11 @@ client.on(Events.InteractionCreate,async interaction=>{
       if(interaction.commandName==='salon'){
         if(!isAdmin(interaction.member)&&!configuredRoleIds(c,['fondateur','cofondateur']).some(id=>interaction.member.roles.cache.has(id)))return safeInteractionReply(interaction,{content:'❌ Réservé à l’administration/fondation.',flags:MessageFlags.Ephemeral});
         if(interaction.options.getSubcommand()==='perm'){
-          const result=await applyAllConfiguredPermissions(guild,c);
+          const liveConfig=getConfig(guild.id);
+          const result=await applyAllConfiguredPermissions(guild,liveConfig);
           await journal(guild.id,`Permissions globales appliquées par <@${interaction.user.id}> : ${result.channels} salons, ${result.categories} catégories.`);
           const errors=result.errors.length?`\n\n⚠️ **Erreurs (${result.errors.length}) :**\n${result.errors.slice(0,10).map(x=>`• ${x}`).join('\n')}`:'';
-          return interaction.editReply({content:`✅ Permissions appliquées sur tout le serveur.\n\n**Salons configurés modifiés :** ${result.channels}\n**Catégories configurées modifiées :** ${result.categories}\n**Éléments non configurés ou introuvables :** ${result.skipped}${errors}`.slice(0,1900)});
+          return interaction.editReply({content:`✅ Permissions appliquées.\n\n**Configuration détectée :**\n• Salons enregistrés : **${result.configuredChannels}**\n• Catégories enregistrées : **${result.configuredCategories}**\n\n**Permissions réellement appliquées :**\n• Salons : **${result.channels}**\n• Catégories : **${result.categories}**\n• Éléments manquants/introuvables : **${result.skipped}**${errors}`.slice(0,1900)});
         }
       }
 
@@ -1678,7 +1732,24 @@ client.on(Events.InteractionCreate,async interaction=>{
       if(interaction.customId==='ticket_select'||interaction.customId==='ticket_select_premium'){const ch=await createTicket(interaction.guild,interaction.user.id,interaction.values[0],interaction.customId.endsWith('premium'));return safeInteractionReply(interaction,{content:`✅ Ticket créé : ${ch}.`,flags:MessageFlags.Ephemeral})}
       if(interaction.customId==='faq_select'){const val=interaction.values[0];const components=val==='q19'?[new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId('go_support').setLabel('Ouvrir un ticket').setStyle(ButtonStyle.Primary))]:[];return safeInteractionReply(interaction,{embeds:[embed('❓ FAQ',faqAnswer(val))],components,flags:MessageFlags.Ephemeral})}
       if(interaction.customId==='order_question_select'){const ch=await createTicket(interaction.guild,interaction.user.id,`commande-${interaction.values[0]}`);return safeInteractionReply(interaction,{content:`✅ Ticket créé : ${ch}.`,flags:MessageFlags.Ephemeral})}
-      if(interaction.customId.startsWith('project_stage:')){const id=interaction.customId.split(':')[1],db=getDb(),p=db.projects[id],c=getConfig(p?.guildId);if(!p)return safeInteractionReply(interaction,{content:'❌ Projet introuvable.',flags:MessageFlags.Ephemeral});if(!isStaff(interaction.member,c))return safeInteractionReply(interaction,{content:'❌ Réservé au personnel.',flags:MessageFlags.Ephemeral});const changed=await changeProjectStage(interaction.guild,p,Number(interaction.values[0]));return safeInteractionReply(interaction,{content:changed?'✅ Étape modifiée.':'ℹ️ Étape inchangée.',flags:MessageFlags.Ephemeral})}
+      if(interaction.customId.startsWith('project_stage:')){
+        const id=interaction.customId.split(':')[1],db=getDb(),p=db.projects[id],c=getConfig(p?.guildId);
+        if(!p)return safeInteractionReply(interaction,{content:'❌ Projet introuvable.',flags:MessageFlags.Ephemeral});
+        if(!isStaff(interaction.member,c))return safeInteractionReply(interaction,{content:'❌ Réservé au personnel.',flags:MessageFlags.Ephemeral});
+
+        const targetIndex=Number(interaction.values[0]);
+        if(isDeliveryStageIndex(targetIndex)){
+          return interaction.showModal(buildDeliveryModal(p.id));
+        }
+
+        const changed=await changeProjectStage(interaction.guild,p,targetIndex);
+        return safeInteractionReply(interaction,{
+          content:changed
+            ?`✅ Projet déplacé vers **${PROJECT_STAGES[targetIndex].label}**. Le client a été informé en MP.`
+            :'ℹ️ Étape inchangée.',
+          flags:MessageFlags.Ephemeral
+        });
+      }
       if(interaction.customId.startsWith('design_stage:')){const id=interaction.customId.split(':')[1],db=getDb(),d=db.designs[id];if(!d)return safeInteractionReply(interaction,{content:'❌ Projet design introuvable.',flags:MessageFlags.Ephemeral});d.status=interaction.values[0];db.designs[id]=d;writeJson(DB_FILE,db);return interaction.update({embeds:[designEmbed(d)],components:designControls(d)})}
       if(interaction.customId.startsWith('poll_vote:')){const[,id]=interaction.customId.split(':');const db=getDb(),p=db.polls[id];if(!p)return safeInteractionReply(interaction,{content:'❌ Sondage introuvable.',flags:MessageFlags.Ephemeral});if(p.endsAt&&Date.now()>p.endsAt)return safeInteractionReply(interaction,{content:'❌ Ce sondage est terminé.',flags:MessageFlags.Ephemeral});p.votes[interaction.user.id]=interaction.values;db.polls[id]=p;writeJson(DB_FILE,db);return safeInteractionReply(interaction,{content:'✅ Vote enregistré.',flags:MessageFlags.Ephemeral})}
     }
@@ -1851,7 +1922,21 @@ client.on(Events.InteractionCreate,async interaction=>{
       }
       if(interaction.customId.startsWith('payment_from_order:')){const orderId=interaction.customId.split(':')[1];const modal=new ModalBuilder().setCustomId(`payment_order_modal:${orderId}`).setTitle('J’ai payé');modal.addComponents(new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('proof').setLabel('Référence / preuve').setStyle(TextInputStyle.Paragraph).setRequired(true)));return interaction.showModal(modal)}
       if(interaction.customId.startsWith('payment_')){const[action,id]=interaction.customId.split(':'),db=getDb(),p=db.payments[id];if(!p)return safeInteractionReply(interaction,{content:'❌ Paiement introuvable.',flags:MessageFlags.Ephemeral});const guild=await getGuild(p.guildId),c=getConfig(p.guildId),member=await getMember(guild,interaction.user.id);if(!isStaff(member,c))return safeInteractionReply(interaction,{content:'❌ Réservé au personnel.',flags:MessageFlags.Ephemeral});if(action==='payment_accept'){const r=await validatePayment(guild,id,interaction.user.id);const latest=getDb(),validatedPayment=latest.payments[id],validatedOrder=validatedPayment?latest.orders[validatedPayment.orderId]:null,project=validatedOrder?.projectId?latest.projects[validatedOrder.projectId]:null;if(!r.already&&validatedOrder){await notifyOrderClient(validatedOrder,`✅ Paiement validé — ${id}`,`Votre paiement **${id}** a été confirmé.\n\nCommande : **${validatedOrder.id}**\nStatut : **Payée**\nProjet créé : **${project?.id||validatedOrder.projectId||'En cours de création'}**\n\nMerci pour votre confiance. Votre projet entre maintenant dans notre processus de réalisation.`);}return safeInteractionReply(interaction,{content:r.already?'ℹ️ Paiement déjà validé, aucun doublon créé.':`✅ Paiement validé.\n📦 Commande : **${validatedOrder?.id||'—'}** → **Payée**\n🚀 Projet : **${project?.id||validatedOrder?.projectId||'Créé'}**\n🧾 Vente, facture, fiche client et statistiques mises à jour.`,flags:MessageFlags.Ephemeral})}if(action==='payment_refuse'){p.status='Refusé';db.payments[id]=p;writeJson(DB_FILE,db);await sendDm(p.userId,{content:`❌ Paiement ${id} refusé.`});return safeInteractionReply(interaction,{content:'✅ Paiement refusé.',flags:MessageFlags.Ephemeral})}if(action==='payment_newproof'){await sendDm(p.userId,{content:`⚠️ Une nouvelle preuve est demandée pour ${id}.`});return safeInteractionReply(interaction,{content:'✅ Demande envoyée.',flags:MessageFlags.Ephemeral})}if(action==='payment_contact'){const modal=new ModalBuilder().setCustomId(`contact_modal:payments:${id}`).setTitle('Contacter le client');modal.addComponents(new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('text').setLabel('Message').setStyle(TextInputStyle.Paragraph).setRequired(true)));return interaction.showModal(modal)}}
-      if(interaction.customId.startsWith('project_')){const[action,id]=interaction.customId.split(':'),db=getDb(),p=db.projects[id];if(!p)return safeInteractionReply(interaction,{content:'❌ Projet introuvable.',flags:MessageFlags.Ephemeral});const guild=await getGuild(p.guildId),c=getConfig(p.guildId),member=await getMember(guild,interaction.user.id);if(!isStaff(member,c))return safeInteractionReply(interaction,{content:'❌ Réservé au personnel.',flags:MessageFlags.Ephemeral});if(action==='project_claim'){p.claimedBy=interaction.user.id;p.updatedAt=new Date().toISOString();db.projects[id]=p;writeJson(DB_FILE,db);await syncProjectCardsSafe(guild,p,'Prise en charge projet');await sendDm(p.userId,{embeds:[embed(`🚀 Projet ${p.id} pris en charge`,`Bonne nouvelle, votre projet **${p.id}** est maintenant pris en charge par notre équipe.\nÉtape actuelle : **${PROJECT_STAGES[p.stageIndex].label}**.`)]});return safeInteractionReply(interaction,{content:'✅ Projet pris en charge et client informé.',flags:MessageFlags.Ephemeral})}if(action==='project_prev'||action==='project_next'){const idx=action==='project_prev'?Math.max(0,p.stageIndex-1):Math.min(PROJECT_STAGES.length-1,p.stageIndex+1);const changed=await changeProjectStage(guild,p,idx);return safeInteractionReply(interaction,{content:changed?'✅ Étape modifiée.':'ℹ️ Étape inchangée.',flags:MessageFlags.Ephemeral})}if(action==='project_contact'){const modal=new ModalBuilder().setCustomId(`contact_modal:projects:${id}`).setTitle('Contacter le client');modal.addComponents(new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('text').setLabel('Message').setStyle(TextInputStyle.Paragraph).setRequired(true)));return interaction.showModal(modal)}}
+      if(interaction.customId.startsWith('project_')){const[action,id]=interaction.customId.split(':'),db=getDb(),p=db.projects[id];if(!p)return safeInteractionReply(interaction,{content:'❌ Projet introuvable.',flags:MessageFlags.Ephemeral});const guild=await getGuild(p.guildId),c=getConfig(p.guildId),member=await getMember(guild,interaction.user.id);if(!isStaff(member,c))return safeInteractionReply(interaction,{content:'❌ Réservé au personnel.',flags:MessageFlags.Ephemeral});if(action==='project_claim'){p.claimedBy=interaction.user.id;p.updatedAt=new Date().toISOString();db.projects[id]=p;writeJson(DB_FILE,db);await syncProjectCardsSafe(guild,p,'Prise en charge projet');await sendDm(p.userId,{embeds:[embed(`🚀 Projet ${p.id} pris en charge`,`Bonne nouvelle, votre projet **${p.id}** est maintenant pris en charge par notre équipe.\nÉtape actuelle : **${PROJECT_STAGES[p.stageIndex].label}**.`)]});return safeInteractionReply(interaction,{content:'✅ Projet pris en charge et client informé.',flags:MessageFlags.Ephemeral})}if(action==='project_prev'||action==='project_next'){
+          const idx=action==='project_prev'?Math.max(0,p.stageIndex-1):Math.min(PROJECT_STAGES.length-1,p.stageIndex+1);
+
+          if(action==='project_next'&&isDeliveryStageIndex(idx)){
+            return interaction.showModal(buildDeliveryModal(p.id));
+          }
+
+          const changed=await changeProjectStage(guild,p,idx);
+          return safeInteractionReply(interaction,{
+            content:changed
+              ?`✅ Projet déplacé vers **${PROJECT_STAGES[idx].label}**. Le client a été informé en MP.`
+              :'ℹ️ Étape inchangée.',
+            flags:MessageFlags.Ephemeral
+          });
+        }if(action==='project_contact'){const modal=new ModalBuilder().setCustomId(`contact_modal:projects:${id}`).setTitle('Contacter le client');modal.addComponents(new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('text').setLabel('Message').setStyle(TextInputStyle.Paragraph).setRequired(true)));return interaction.showModal(modal)}}
       if(interaction.customId.startsWith('test_status:')){const parts=interaction.customId.split(':'),id=parts[1],status=parts.slice(2).join(':'),db=getDb(),t=db.tests[id];if(!t)return safeInteractionReply(interaction,{content:'❌ Test introuvable.',flags:MessageFlags.Ephemeral});const guild=await getGuild(t.guildId),c=getConfig(t.guildId),member=await getMember(guild,interaction.user.id);if(interaction.user.id!==t.userId&&!isStaff(member,c))return safeInteractionReply(interaction,{content:'❌ Tu ne peux modifier que tes tests.',flags:MessageFlags.Ephemeral});t.status=status;db.tests[id]=t;writeJson(DB_FILE,db);await interaction.update({embeds:[testEmbed(t)],components:testControls(t)});await sendDm(t.userId,{embeds:[embed(`🧪 Mise à jour ${id}`,`Statut : **${status}**`)]});return}
       if(interaction.customId.startsWith('bug_status:')){const parts=interaction.customId.split(':'),id=parts[1],status=parts.slice(2).join(':'),db=getDb(),b=db.bugs[id];if(!b)return safeInteractionReply(interaction,{content:'❌ Bug introuvable.',flags:MessageFlags.Ephemeral});const guild=await getGuild(b.guildId),c=getConfig(b.guildId),member=await getMember(guild,interaction.user.id);if(interaction.user.id!==b.userId&&!isStaff(member,c))return safeInteractionReply(interaction,{content:'❌ Tu ne peux modifier que tes bugs.',flags:MessageFlags.Ephemeral});b.status=status;db.bugs[id]=b;writeJson(DB_FILE,db);await interaction.update({embeds:[bugEmbed(b)],components:bugControls(b)});await sendDm(b.userId,{embeds:[embed(`🐞 Mise à jour ${id}`,`Statut : **${status}**`)]});return}
       if(interaction.customId.startsWith('ticket_')){const[action,id]=interaction.customId.split(':'),db=getDb(),t=db.tickets[id];if(!t)return safeInteractionReply(interaction,{content:'❌ Ticket introuvable.',flags:MessageFlags.Ephemeral});const guild=await getGuild(t.guildId),c=getConfig(t.guildId),member=await getMember(guild,interaction.user.id);if(!isStaff(member,c))return safeInteractionReply(interaction,{content:'❌ Réservé au personnel.',flags:MessageFlags.Ephemeral});const ch=await guild.channels.fetch(t.channelId).catch(()=>null);if(action==='ticket_claim'){t.claimedBy=interaction.user.id;db.tickets[id]=t;writeJson(DB_FILE,db);return safeInteractionReply(interaction,{content:`✅ Ticket pris par ${interaction.user}.`})}if(action==='ticket_contact'){const modal=new ModalBuilder().setCustomId(`contact_modal:tickets:${id}`).setTitle('Contacter le client');modal.addComponents(new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('text').setLabel('Message').setStyle(TextInputStyle.Paragraph).setRequired(true)));return interaction.showModal(modal)}if(action==='ticket_member_add'||action==='ticket_member_remove'){return safeInteractionReply(interaction,{content:'Choisis un utilisateur :',components:[new ActionRowBuilder().addComponents(new UserSelectMenuBuilder().setCustomId(`${action}_select:${id}`).setPlaceholder('Sélectionner un utilisateur').setMinValues(1).setMaxValues(1))],flags:MessageFlags.Ephemeral})}if(action==='ticket_rename'){const modal=new ModalBuilder().setCustomId(`ticket_rename_modal:${id}`).setTitle('Renommer le ticket');modal.addComponents(new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('name').setLabel('Nouveau nom').setStyle(TextInputStyle.Short).setRequired(true)));return interaction.showModal(modal)}if(action==='ticket_close'){t.status='Fermé';db.tickets[id]=t;writeJson(DB_FILE,db);if(ch)await ch.permissionOverwrites.edit(t.userId,{SendMessages:false});return safeInteractionReply(interaction,{content:'🔒 Ticket fermé.'})}if(action==='ticket_reopen'){t.status='Ouvert';db.tickets[id]=t;writeJson(DB_FILE,db);if(ch)await ch.permissionOverwrites.edit(t.userId,{SendMessages:true});return safeInteractionReply(interaction,{content:'🔓 Ticket rouvert.'})}if(action==='ticket_archive'){t.status='Archivé';db.tickets[id]=t;writeJson(DB_FILE,db);if(ch)await ch.setName(`archive-${ch.name}`.slice(0,100));return safeInteractionReply(interaction,{content:'📁 Ticket archivé.'})}}
@@ -1864,6 +1949,91 @@ client.on(Events.InteractionCreate,async interaction=>{
     if(interaction.isModalSubmit()){
       if(!interaction.deferred&&!interaction.replied) await interaction.deferReply({flags:MessageFlags.Ephemeral});
       const gid=interaction.guildId || null;
+      if(interaction.customId.startsWith('project_delivery_modal:')){
+        const projectId=interaction.customId.split(':')[1];
+        const db=getDb();
+        const p=db.projects[projectId];
+
+        if(!p)return safeInteractionReply(interaction,{
+          content:'❌ Projet introuvable.',
+          flags:MessageFlags.Ephemeral
+        });
+
+        const guild=await getGuild(p.guildId);
+        const c=getConfig(p.guildId);
+        const member=await getMember(guild,interaction.user.id);
+
+        if(!isStaff(member,c))return safeInteractionReply(interaction,{
+          content:'❌ Réservé au personnel.',
+          flags:MessageFlags.Ephemeral
+        });
+
+        const link=interaction.fields.getTextInputValue('delivery_link').trim();
+        const customMessage=interaction.fields.getTextInputValue('delivery_message').trim();
+
+        if(!/^https?:\/\//i.test(link)){
+          return safeInteractionReply(interaction,{
+            content:'❌ Le lien doit commencer par **http://** ou **https://**.',
+            flags:MessageFlags.Ephemeral
+          });
+        }
+
+        const deliveryIndex=PROJECT_STAGES.findIndex(s=>s.key==='livraisons_projets');
+        if(deliveryIndex<0)throw new Error('Étape Livraison introuvable.');
+
+        // Enregistrer le lien sur le projet avant le changement d'étape.
+        p.deliveryLink=link;
+        p.deliveryMessage=customMessage||null;
+        p.deliveredBy=interaction.user.id;
+        p.deliveredAt=new Date().toISOString();
+
+        db.projects[p.id]=p;
+        writeJson(DB_FILE,db);
+
+        await changeProjectStage(guild,p,deliveryIndex);
+
+        // Mettre à jour / créer la fiche de livraison avec le lien.
+        const latest=getDb();
+        let delivery=Object.values(latest.deliveries).find(x=>x.projectId===p.id);
+
+        if(delivery){
+          delivery.status='Livré';
+          delivery.link=link;
+          delivery.deliveredBy=interaction.user.id;
+          delivery.deliveredAt=new Date().toISOString();
+          latest.deliveries[delivery.id]=delivery;
+          writeJson(DB_FILE,latest);
+        }
+
+        const thanks=customMessage||
+          `Merci beaucoup pour votre confiance et pour votre commande chez Creaty. `+
+          `Nous espérons que votre projet vous plaira !`;
+
+        const dmOk=await sendDm(p.userId,{
+          embeds:[embed(
+            `📦 Livraison de votre projet ${p.id}`,
+            `${thanks}\n\n`+
+            `Votre projet **${p.projectName}** est maintenant prêt.\n`+
+            `Commande : **${p.orderId}**\n\n`+
+            `🔗 **Lien de livraison :**\n${link}\n\n`+
+            `Merci encore pour votre confiance. N'hésitez pas à nous contacter si vous avez besoin d'aide.`,
+            0x57F287
+          )]
+        });
+
+        await journal(
+          guild.id,
+          `${p.id} livré par <@${interaction.user.id}> — lien envoyé au client : ${dmOk?'oui':'non'}`
+        );
+
+        return safeInteractionReply(interaction,{
+          content:dmOk
+            ?`✅ **${p.id}** est passé en **Livraison** et le lien a été envoyé en MP au client.`
+            :`⚠️ **${p.id}** est passé en **Livraison**, mais le MP n'a pas pu être envoyé au client. Le lien reste enregistré.`,
+          flags:MessageFlags.Ephemeral
+        });
+      }
+
       if(interaction.customId==='quote_modal'){const q=await createQuote(interaction.guild,interaction.user.id,interaction.fields.getTextInputValue('project'),interaction.fields.getTextInputValue('service'),interaction.fields.getTextInputValue('description'));return safeInteractionReply(interaction,{content:`✅ Devis créé : **${q.id}**.`,flags:MessageFlags.Ephemeral})}
       if(interaction.customId.startsWith('order_modal:')){const offerKey=interaction.customId.split(':')[1],o=await createOrder(interaction.guild,interaction.user.id,offerKey,interaction.fields.getTextInputValue('project'),interaction.fields.getTextInputValue('service'),`${interaction.fields.getTextInputValue('description')}\nDélai souhaité : ${interaction.fields.getTextInputValue('deadline')||'Non précisé'}`);return safeInteractionReply(interaction,{content:`✅ Commande créée : **${o.id}**.`,flags:MessageFlags.Ephemeral})}
       if(interaction.customId.startsWith('quote_price_modal:')){const id=interaction.customId.split(':')[1],db=getDb(),q=db.quotes[id];if(!q)return safeInteractionReply(interaction,{content:'❌ Devis introuvable.',flags:MessageFlags.Ephemeral});const price=Number(interaction.fields.getTextInputValue('price').replace(',','.'));if(!Number.isFinite(price)||price<0)return safeInteractionReply(interaction,{content:'❌ Prix invalide.',flags:MessageFlags.Ephemeral});q.price=price;q.status='Prix défini';db.quotes[id]=q;writeJson(DB_FILE,db);const guild=await getGuild(q.guildId);await saveQuoteCard(guild,q);await notifyQuoteClient(q,`Prix défini pour ${q.id}`,`Le prix de votre devis **${q.id}** a été défini à **${price.toFixed(2)} €**.`);return safeInteractionReply(interaction,{content:`✅ Prix : **${price.toFixed(2)} €**.`,flags:MessageFlags.Ephemeral})}
