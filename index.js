@@ -20,7 +20,10 @@ const client = new Client({
   presence: { status: 'online', activities: [{ name: 'Creaty Bot', type: ActivityType.Playing }] }
 });
 
-const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
+const DATA_DIR = process.env.DATA_DIR ||
+  ((process.env.RAILWAY_ENVIRONMENT || process.env.RAILWAY_PROJECT_ID)
+    ? '/data'
+    : path.join(__dirname, 'data'));
 const CONFIG_FILE = path.join(DATA_DIR, 'config.json');
 const DB_FILE = path.join(DATA_DIR, 'operations.json');
 
@@ -535,6 +538,85 @@ function quoteControls(q){
     new ButtonBuilder().setCustomId(`quote_refuse:${q.id}`).setLabel('Refuser').setStyle(ButtonStyle.Danger),
     new ButtonBuilder().setCustomId(`quote_archive:${q.id}`).setLabel('Archiver').setStyle(ButtonStyle.Secondary)
   )];
+}
+
+
+async function recoverOrderFromInteractionMessage(interaction,expectedId){
+  try{
+    const msg=interaction.message;
+    const rawEmbed=msg?.embeds?.[0];
+    if(!rawEmbed)return null;
+
+    const title=rawEmbed.title||'';
+    const description=rawEmbed.description||'';
+
+    const titleMatch=title.match(/(CMD-\d+)\s*[—-]\s*(.+)$/i);
+    const id=(titleMatch?.[1]||expectedId||'').toUpperCase();
+    if(!id||id!==String(expectedId||id).toUpperCase())return null;
+
+    const projectName=(titleMatch?.[2]||'Projet récupéré').trim();
+
+    const userId=description.match(/Client\s*:\s*<@!?(\d+)>/i)?.[1]||null;
+    if(!userId)return null;
+
+    const offerLabel=description.match(/Offre\s*:\s*\*\*(.+?)\*\*/i)?.[1]
+      ||description.match(/Offre\s*:\s*(.+)/i)?.[1]?.trim()
+      ||'Projet sur mesure';
+
+    const priceText=description.match(/Prix\s*:\s*\*\*?([0-9]+(?:[.,][0-9]+)?)\s*€/i)?.[1]
+      ||description.match(/Prix\s*:\s*([0-9]+(?:[.,][0-9]+)?)\s*€/i)?.[1]
+      ||null;
+
+    const status=description.match(/Statut\s*:\s*\*\*(.+?)\*\*/i)?.[1]
+      ||description.match(/Statut\s*:\s*(.+)/i)?.[1]?.trim()
+      ||'En attente';
+
+    const paymentStatus=description.match(/Paiement\s*:\s*\*\*(.+?)\*\*/i)?.[1]
+      ||description.match(/Paiement\s*:\s*(.+)/i)?.[1]?.trim()
+      ||'Non envoyé';
+
+    const responsible=description.match(/Responsable\s*:\s*<@!?(\d+)>/i)?.[1]||null;
+    const projectId=description.match(/Projet\s*:\s*\*\*(PROJ-\d+)\*\*/i)?.[1]
+      ||description.match(/Projet\s*:\s*(PROJ-\d+)/i)?.[1]
+      ||null;
+
+    const recovered={
+      id,
+      guildId:interaction.guildId,
+      userId,
+      offerKey:'custom',
+      offerLabel,
+      projectName,
+      service:offerLabel,
+      description:'Commande récupérée automatiquement depuis sa fiche Discord.',
+      price:priceText?Number(priceText.replace(',','.')):null,
+      quoteId:null,
+      status,
+      paymentStatus,
+      claimedBy:responsible,
+      projectId,
+      messageId:msg.id,
+      recoveredFromDiscord:true,
+      recoveredAt:new Date().toISOString(),
+      createdAt:msg.createdAt?.toISOString?.()||new Date().toISOString()
+    };
+
+    const db=getDb();
+    db.orders[id]=recovered;
+
+    // Recaler le compteur pour éviter de recréer plus tard CMD-0005.
+    const n=Number(id.split('-')[1]);
+    if(Number.isFinite(n)){
+      db.counters.orders=Math.max(db.counters.orders||0,n);
+    }
+
+    writeJson(DB_FILE,db);
+    await journal(interaction.guildId,`${id} récupérée automatiquement depuis une ancienne fiche Discord.`);
+    return recovered;
+  }catch(error){
+    await logError(interaction.guildId,error,`Récupération automatique commande ${expectedId}`);
+    return null;
+  }
 }
 
 function orderEmbed(o){return embed(`📦 ${o.id} — ${o.projectName}`,[`Client : <@${o.userId}>`,`Offre : **${o.offerLabel||o.service}**`,`Prix : **${o.price==null?'À définir':`${Number(o.price).toFixed(2)} €`}**`,`Statut : **${o.status}**`,`Paiement : **${o.paymentStatus}**`,`Responsable : ${o.claimedBy?`<@${o.claimedBy}>`:'Aucun'}`,`Projet : **${o.projectId||'Non créé'}**`].join('\n'),0x3498DB)}
@@ -1599,6 +1681,9 @@ process.on('SIGTERM',()=>gracefulShutdown('SIGTERM'));
 process.on('SIGINT',()=>gracefulShutdown('SIGINT'));
 
 client.once(Events.ClientReady, async()=>{
+  console.log(`📁 DATA_DIR : ${DATA_DIR}`);
+  console.log(`📄 CONFIG_FILE : ${CONFIG_FILE}`);
+  console.log(`📄 DB_FILE : ${DB_FILE}`);
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');console.log('✅ CREATY BOT CONNECTÉ');console.log(`🤖 Nom : ${client.user.tag}`);console.log(`🆔 ID : ${client.user.id}`);console.log(`🌐 Serveurs : ${client.guilds.cache.size}`);console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
   ensureFiles();getDb();
   const cfg=migrateConfig(readJson(CONFIG_FILE));writeJson(CONFIG_FILE,cfg);
@@ -1985,9 +2070,22 @@ client.on(Events.InteractionCreate,async interaction=>{
           return safeInteractionReply(interaction,{content:'✅ Devis supprimé définitivement après le délai de conservation.',flags:MessageFlags.Ephemeral});
         }
       }
-      if(interaction.customId.startsWith('order_'))if(interaction.customId.startsWith('order_')){
-        const[action,id]=interaction.customId.split(':'),db=getDb(),o=db.orders[id];
-        if(!o)return safeInteractionReply(interaction,{content:'❌ Commande introuvable.',flags:MessageFlags.Ephemeral});
+      if(interaction.customId.startsWith('order_')){
+        const[action,id]=interaction.customId.split(':');
+        let db=getDb();
+        let o=db.orders[id];
+
+        // Si la fiche existe encore sur Discord mais que operations.json a été réinitialisé,
+        // on reconstruit automatiquement la commande depuis l'embed au premier clic.
+        if(!o){
+          o=await recoverOrderFromInteractionMessage(interaction,id);
+          db=getDb();
+        }
+
+        if(!o)return safeInteractionReply(interaction,{
+          content:'❌ Commande introuvable dans les données et récupération automatique impossible.',
+          flags:MessageFlags.Ephemeral
+        });
         const guild=await getGuild(o.guildId),c=getConfig(o.guildId),member=await getMember(guild,interaction.user.id);
         if(!isStaff(member,c))return safeInteractionReply(interaction,{content:'❌ Réservé au personnel.',flags:MessageFlags.Ephemeral});
 
