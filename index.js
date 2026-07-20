@@ -124,6 +124,36 @@ const ROLE_CONFIG_GROUPS = {
   systeme: ['bot','notifications']
 };
 
+const PERMISSION_GROUPS = {
+  foundation: [
+    'pole_fondation','fondateur','cofondateur'
+  ],
+  direction: [
+    'pole_direction','directeur_general','directeur'
+  ],
+  development: [
+    'pole_developpement','lead_developpeur','developpeur_bot',
+    'developpeur_serveur','developpeur_backend','developpeur_frontend',
+    'testeur','developpeur_junior'
+  ],
+  commercial: [
+    'pole_commercial','responsable_commercial','commercial',
+    'support_client','responsable_paiement'
+  ],
+  design: [
+    'pole_design','lead_designer','graphiste','uiux_designer','monteur'
+  ],
+  moderation: [
+    'pole_moderation','administrateur','moderateur','assistant_moderateur'
+  ],
+  clientele: [
+    'pole_clientele','client_premium','client','prospect','partenaire'
+  ],
+  community: [
+    'membre','nouveau'
+  ]
+};
+
 const GRADE_TO_POLE = {
   fondateur:'pole_fondation', cofondateur:'pole_fondation',
   directeur_general:'pole_direction', directeur:'pole_direction',
