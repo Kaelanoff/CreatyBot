@@ -1124,9 +1124,62 @@ function globalStatsText(guildId){if(!guildId)return 'Statistiques en attente.';
 
 async function refreshBusinessPanels(guild){
   for(const key of ['statistiques_commerciales','objectifs','chiffre_affaires','direction','finance','statistiques_globales','gestion_financiere']){
-    const c=getConfig(guild.id);if(!c.channels[key])continue;
-    const def= key==='statistiques_commerciales'?['📊 Statistiques commerciales',statsText(guild.id),0x3498DB]:key==='objectifs'?['🎯 Objectif mensuel',goalText(c,guild.id),0xF1C40F]:key==='chiffre_affaires'?['💶 Chiffre d’affaires',revenueText(guild.id),0x57F287]:key==='direction'?['📊 Dashboard Direction',directionText(guild.id),0x5865F2]:key==='finance'?['💶 Finance',financeText(guild.id),0x57F287]:key==='statistiques_globales'?['🌐 Statistiques globales',globalStatsText(guild.id),0x3498DB]:['🏦 Gestion financière',financeText(guild.id),0x57F287];
-    const ch=await guild.channels.fetch(c.channels[key]).catch(()=>null);if(!ch || typeof ch.isTextBased!=='function' || !ch.isTextBased())continue;let m=null;if(c.panels[key])m=await ch.messages.fetch(c.panels[key]).catch(()=>null);if(m)await m.edit({embeds:[embed(def[0],def[1],def[2])]});else{m=await ch.send({embeds:[embed(def[0],def[1],def[2])]});setConfig(guild.id,'panels',key,m.id)}
+    const c=getConfig(guild.id);
+    if(!c.channels[key])continue;
+
+    const def=
+      key==='statistiques_commerciales'?['📊 Statistiques commerciales',statsText(guild.id),0x3498DB]:
+      key==='objectifs'?['🎯 Objectif mensuel',goalText(c,guild.id),0xF1C40F]:
+      key==='chiffre_affaires'?['💶 Chiffre d’affaires',revenueText(guild.id),0x57F287]:
+      key==='direction'?['📊 Dashboard Direction',directionText(guild.id),0x5865F2]:
+      key==='finance'?['💶 Finance',financeText(guild.id),0x57F287]:
+      key==='statistiques_globales'?['🌐 Statistiques globales',globalStatsText(guild.id),0x3498DB]:
+      ['🏦 Gestion financière',financeText(guild.id),0x57F287];
+
+    const ch=await guild.channels.fetch(c.channels[key]).catch(()=>null);
+    if(!isUsableTextChannel(ch))continue;
+
+    let m=null;
+
+    // Si un ancien ID de panneau pointe vers un message supprimé,
+    // on l'oublie automatiquement et on recrée proprement le panneau.
+    if(c.panels[key]){
+      m=await ch.messages.fetch(c.panels[key]).catch(()=>null);
+
+      if(!m){
+        const cfg=getConfig(guild.id);
+        if(cfg.panels?.[key]){
+          const data=migrateConfig(readJson(CONFIG_FILE));
+          if(data.guilds?.[guild.id]?.panels)delete data.guilds[guild.id].panels[key];
+          writeJson(CONFIG_FILE,data);
+        }
+      }
+    }
+
+    if(m){
+      try{
+        await m.edit({embeds:[embed(def[0],def[1],def[2])]});
+      }catch(error){
+        // Unknown Message = panneau supprimé entre le fetch et l'edit.
+        if(error?.code===10008){
+          const data=migrateConfig(readJson(CONFIG_FILE));
+          if(data.guilds?.[guild.id]?.panels)delete data.guilds[guild.id].panels[key];
+          writeJson(CONFIG_FILE,data);
+
+          const recreated=await ch.send({embeds:[embed(def[0],def[1],def[2])]});
+          setConfig(guild.id,'panels',key,recreated.id);
+        }else{
+          await logError(guild.id,error,`Actualisation panneau ${key}`);
+        }
+      }
+    }else{
+      try{
+        const created=await ch.send({embeds:[embed(def[0],def[1],def[2])]});
+        setConfig(guild.id,'panels',key,created.id);
+      }catch(error){
+        await logError(guild.id,error,`Création panneau ${key}`);
+      }
+    }
   }
 }
 
