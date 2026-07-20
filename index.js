@@ -1572,6 +1572,32 @@ const commands=[
   new SlashCommandBuilder().setName('decision').setDescription('Créer une décision de direction.').addStringOption(o=>o.setName('titre').setDescription('Titre').setRequired(true)).addStringOption(o=>o.setName('details').setDescription('Détails').setRequired(true))
 ];
 
+
+let shuttingDown=false;
+
+async function gracefulShutdown(signal){
+  if(shuttingDown)return;
+  shuttingDown=true;
+
+  console.log(`🛑 Signal ${signal} reçu — arrêt propre de Creaty Bot...`);
+
+  try{
+    client.destroy();
+  }catch(error){
+    console.error('Erreur pendant la fermeture Discord :',error);
+  }
+
+  // On quitte volontairement avec le code 0 :
+  // Railway peut envoyer SIGTERM lors d'un redéploiement ou remplacement de conteneur.
+  setTimeout(()=>{
+    console.log('✅ Creaty Bot arrêté proprement.');
+    process.exit(0);
+  },250);
+}
+
+process.on('SIGTERM',()=>gracefulShutdown('SIGTERM'));
+process.on('SIGINT',()=>gracefulShutdown('SIGINT'));
+
 client.once(Events.ClientReady, async()=>{
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');console.log('✅ CREATY BOT CONNECTÉ');console.log(`🤖 Nom : ${client.user.tag}`);console.log(`🆔 ID : ${client.user.id}`);console.log(`🌐 Serveurs : ${client.guilds.cache.size}`);console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
   ensureFiles();getDb();
