@@ -58,10 +58,47 @@ const CHANNELS = [
 ];
 
 const CATEGORIES = [
-  ['tickets','Catégorie Tickets'],
-  ['tickets_premium','Catégorie Tickets Premium'],
+  ['cat_aeroport','Catégorie Aéroport'],
+  ['cat_hub','Catégorie Hub'],
+  ['cat_support','Catégorie Support'],
+  ['cat_communaute','Catégorie Communauté'],
+  ['cat_services','Catégorie Services'],
+  ['cat_commandes','Catégorie Commandes'],
+  ['cat_espace_clients','Catégorie Espace clients'],
+  ['cat_premium','Catégorie Premium'],
+  ['cat_developpement','Catégorie Développement'],
+  ['cat_projets','Catégorie Projets'],
+  ['cat_commercial','Catégorie Commercial'],
+  ['cat_design','Catégorie Design'],
+  ['cat_staff','Catégorie Staff'],
+  ['cat_direction','Catégorie Direction'],
+  ['cat_fondation','Catégorie Fondation'],
+  ['cat_gestion_clients','Catégorie Gestion clients'],
+  ['cat_logs','Catégorie Logs'],
+  ['tickets','Catégorie Tickets privés'],
+  ['tickets_premium','Catégorie Tickets Premium privés'],
   ['devis','Catégorie Devis privés']
 ];
+
+const SALON_CONFIG_GROUPS = {
+  aeroport: ['cat_aeroport','bienvenue','depart'],
+  hub: ['cat_hub','reglement','annonces','info','roadmap','liens','faq','sondages'],
+  support: ['cat_support','ticket','attente_vocale','support_premium','tickets','tickets_premium'],
+  communaute: ['cat_communaute','discussion','media','suggestion','vos_bots','presentation','evenements'],
+  services: ['cat_services','creation_bot','creation_serveur','hebergement','tarifs','garantie'],
+  commandes: ['cat_commandes','commander','demander_devis','suivi_commandes','paiements','conditions','questions_commandes','offres_speciales','devis'],
+  espace_clients: ['cat_espace_clients','infos_clients','livraisons_clients','factures','avis'],
+  premium: ['cat_premium','commandes_premium','avantages_premium','annonces_premium','premium_chat'],
+  developpement: ['cat_developpement','annonces_dev','discussion_dev','documentation','tests_dev','bugs'],
+  projets: ['cat_projets','liste_projets','projets_attente','analyse','developpement','tests_projets','corrections','termines','livraisons_projets','archives'],
+  commercial: ['cat_commercial','ventes','devis_commerciaux','commandes_commerciales','archives_devis','archives_commandes','statistiques_commerciales','objectifs','chiffre_affaires','discussion_commerciale'],
+  design: ['cat_design','creations','logos','bannieres','miniatures','reseaux_sociaux','discussion_design'],
+  staff: ['cat_staff','staff_chat','staff_annonces','recrutements','sanctions','reunions'],
+  direction: ['cat_direction','direction','finance','statistiques_globales','planning','partenaires','contrats','decisions','documents'],
+  fondation: ['cat_fondation','fondation','documents_confidentiels','projets_secrets','gestion_financiere','acces_total','journal_direction'],
+  gestion_clients: ['cat_gestion_clients','liste_clients','nouveaux_clients','clients_premium'],
+  logs: ['cat_logs','logs_bot','logs_erreurs','logs_roles']
+};
 
 const ROLES = [
   ['pole_fondation','Pôle Fondation'],['fondateur','Fondateur'],['cofondateur','Co-Fondateur'],
@@ -1076,11 +1113,68 @@ function channelPermissionProfile(key){
 
   return {public:false,mode:'chat',roles:staff};
 }
-function categoryPermissionRoleKeys(key){
-  if(key==='devis') return uniqueKeys([...PERMISSION_GROUPS.commercial,...PERMISSION_GROUPS.direction,...PERMISSION_GROUPS.foundation]);
-  if(key==='tickets_premium') return uniqueKeys([...PERMISSION_GROUPS.commercial,...PERMISSION_GROUPS.moderation,...PERMISSION_GROUPS.direction,...PERMISSION_GROUPS.foundation]);
-  if(key==='tickets') return staffPermissionRoleKeys();
-  return staffPermissionRoleKeys();
+function categoryPermissionProfile(key){
+  const staff=staffPermissionRoleKeys();
+  const management=uniqueKeys([...PERMISSION_GROUPS.direction,...PERMISSION_GROUPS.foundation]);
+  const devManagement=uniqueKeys([...PERMISSION_GROUPS.development,...management]);
+  const commercialManagement=uniqueKeys([...PERMISSION_GROUPS.commercial,...management]);
+  const designManagement=uniqueKeys([...PERMISSION_GROUPS.design,...management]);
+
+  if(['cat_aeroport','cat_hub'].includes(key))
+    return {public:true,mode:'readonly',roles:staff,writers:management};
+
+  if(key==='cat_support')
+    return {public:true,mode:'interactive',roles:staff,writers:staff};
+
+  if(key==='cat_communaute')
+    return {public:false,mode:'chat',roles:memberPermissionRoleKeys()};
+
+  if(['cat_services','cat_commandes'].includes(key))
+    return {public:false,mode:'readonly',roles:memberPermissionRoleKeys(),writers:commercialManagement};
+
+  if(key==='cat_espace_clients')
+    return {public:false,mode:'readonly',roles:uniqueKeys([...PERMISSION_GROUPS.clientele,...staff]),writers:commercialManagement};
+
+  if(key==='cat_premium')
+    return {public:false,mode:'readonly',roles:uniqueKeys(['client_premium','pole_clientele',...staff]),writers:commercialManagement};
+
+  if(key==='cat_developpement')
+    return {public:false,mode:'chat',roles:devManagement};
+
+  if(key==='cat_projets')
+    return {public:false,mode:'chat',roles:uniqueKeys([...PERMISSION_GROUPS.development,...PERMISSION_GROUPS.commercial,...PERMISSION_GROUPS.design,...management])};
+
+  if(key==='cat_commercial')
+    return {public:false,mode:'chat',roles:commercialManagement};
+
+  if(key==='cat_design')
+    return {public:false,mode:'chat',roles:designManagement};
+
+  if(key==='cat_staff')
+    return {public:false,mode:'chat',roles:staff};
+
+  if(key==='cat_direction')
+    return {public:false,mode:'chat',roles:management};
+
+  if(key==='cat_fondation')
+    return {public:false,mode:'chat',roles:PERMISSION_GROUPS.foundation};
+
+  if(key==='cat_gestion_clients')
+    return {public:false,mode:'chat',roles:commercialManagement};
+
+  if(key==='cat_logs')
+    return {public:false,mode:'readonly',roles:devManagement,writers:management};
+
+  if(key==='devis')
+    return {public:false,mode:'chat',roles:uniqueKeys([...PERMISSION_GROUPS.commercial,...PERMISSION_GROUPS.direction,...PERMISSION_GROUPS.foundation])};
+
+  if(key==='tickets_premium')
+    return {public:false,mode:'chat',roles:uniqueKeys([...PERMISSION_GROUPS.commercial,...PERMISSION_GROUPS.moderation,...PERMISSION_GROUPS.direction,...PERMISSION_GROUPS.foundation])};
+
+  if(key==='tickets')
+    return {public:false,mode:'chat',roles:staff};
+
+  return {public:false,mode:'chat',roles:staff};
 }
 
 async function applyAllConfiguredPermissions(guild,c){
@@ -1281,11 +1375,7 @@ async function applyAllConfiguredPermissions(guild,c){
     }
 
     try{
-      const profile={
-        public:false,
-        mode:'chat',
-        roles:categoryPermissionRoleKeys(key)
-      };
+      const profile=categoryPermissionProfile(key);
 
       await category.permissionOverwrites.set(
         overwritesFor(category,profile),
@@ -1335,7 +1425,28 @@ async function applyAllConfiguredPermissions(guild,c){
 }
 const commands=[
   new SlashCommandBuilder().setName('config').setDescription('Configuration complète.')
-    .addSubcommand(s=>s.setName('salon').setDescription('Configurer un salon ou une catégorie.').addStringOption(o=>o.setName('type').setDescription('Élément').setRequired(true).setAutocomplete(true)).addChannelOption(o=>o.setName('cible').setDescription('Salon ou catégorie').setRequired(true)))
+    .addSubcommand(s=>s.setName('salon').setDescription('Configurer tous les salons et catégories.')
+      .addStringOption(o=>o.setName('groupe').setDescription('Espace à configurer').setRequired(true).addChoices(
+        {name:'Aéroport',value:'aeroport'},
+        {name:'Hub / Informations',value:'hub'},
+        {name:'Support',value:'support'},
+        {name:'Communauté',value:'communaute'},
+        {name:'Services',value:'services'},
+        {name:'Commandes',value:'commandes'},
+        {name:'Espace clients',value:'espace_clients'},
+        {name:'Premium',value:'premium'},
+        {name:'Développement',value:'developpement'},
+        {name:'Projets',value:'projets'},
+        {name:'Commercial',value:'commercial'},
+        {name:'Design',value:'design'},
+        {name:'Staff',value:'staff'},
+        {name:'Direction',value:'direction'},
+        {name:'Fondation',value:'fondation'},
+        {name:'Gestion clients',value:'gestion_clients'},
+        {name:'Logs',value:'logs'}
+      ))
+      .addStringOption(o=>o.setName('type').setDescription('Salon ou catégorie').setRequired(true).setAutocomplete(true))
+      .addChannelOption(o=>o.setName('cible').setDescription('Salon ou catégorie Discord').setRequired(true)))
     .addSubcommand(s=>s.setName('role').setDescription('Configurer un rôle.')
       .addStringOption(o=>o.setName('groupe').setDescription('Groupe de rôles').setRequired(true).addChoices(
         {name:'Fondation',value:'fondation'},
@@ -1451,7 +1562,9 @@ client.on(Events.InteractionCreate,async interaction=>{
       if(interaction.commandName==='config'&&focused.name==='type'){
         const sub=interaction.options.getSubcommand();
         if(sub==='salon'){
-          choices=[...CHANNELS,...CATEGORIES];
+          const group=interaction.options.getString('groupe');
+          const allowedKeys=SALON_CONFIG_GROUPS[group]||[...CHANNELS,...CATEGORIES].map(([k])=>k);
+          choices=[...CATEGORIES,...CHANNELS].filter(([k])=>allowedKeys.includes(k));
         }else if(sub==='role'){
           const group=interaction.options.getString('groupe');
           const allowedKeys=ROLE_CONFIG_GROUPS[group]||ROLES.map(([k])=>k);
@@ -1469,7 +1582,7 @@ client.on(Events.InteractionCreate,async interaction=>{
       if(interaction.commandName==='config'){
         if(!isAdmin(interaction.member)&&!configuredRoleIds(c,['fondateur','cofondateur']).some(id=>interaction.member.roles.cache.has(id)))return safeInteractionReply(interaction,{content:'❌ Réservé à l’administration/fondation.',flags:MessageFlags.Ephemeral});
         const sub=interaction.options.getSubcommand();
-        if(sub==='salon'){const type=interaction.options.getString('type'),target=interaction.options.getChannel('cible');const isCat=CATEGORIES.some(([k])=>k===type);setConfig(guild.id,isCat?'categories':'channels',type,target.id);await journal(guild.id,`Configuration ${type} → ${target.id}`);return safeInteractionReply(interaction,{content:`✅ ${type} configuré sur ${target}.`,flags:MessageFlags.Ephemeral})}
+        if(sub==='salon'){const type=interaction.options.getString('type'),target=interaction.options.getChannel('cible');const catEntry=CATEGORIES.find(([k])=>k===type),channelEntry=CHANNELS.find(([k])=>k===type);const isCat=Boolean(catEntry);const label=(catEntry||channelEntry)?.[1]||type;if(isCat&&target.type!==ChannelType.GuildCategory)return safeInteractionReply(interaction,{content:`❌ **${label}** doit être configuré avec une vraie catégorie Discord.`,flags:MessageFlags.Ephemeral});if(!isCat&&target.type===ChannelType.GuildCategory)return safeInteractionReply(interaction,{content:`❌ **${label}** doit être configuré avec un salon, pas une catégorie.`,flags:MessageFlags.Ephemeral});setConfig(guild.id,isCat?'categories':'channels',type,target.id);await journal(guild.id,`Configuration ${label} (${type}) → ${target.id}`);return safeInteractionReply(interaction,{content:`✅ **${label}** configuré sur ${target}.`,flags:MessageFlags.Ephemeral})}
         if(sub==='role'){const type=interaction.options.getString('type'),role=interaction.options.getRole('role');const roleLabel=ROLES.find(([k])=>k===type)?.[1]||type;setConfig(guild.id,'roles',type,role.id);await journal(guild.id,`Configuration rôle ${roleLabel} (${type}) → ${role.id}`);if(['fondateur','cofondateur','directeur','directeur_general'].includes(type))await safeLog(guild.id,'acces_total',{content:`⚠️ Configuration sensible : rôle **${roleLabel}** modifié par <@${interaction.user.id}>.`});return safeInteractionReply(interaction,{content:`✅ **${roleLabel}** configuré sur ${role}.`,flags:MessageFlags.Ephemeral})}
         if(sub==='paiement'){setConfig(guild.id,'settings','paypalUrl',interaction.options.getString('lien'));setConfig(guild.id,'settings','paymentMessage',interaction.options.getString('message')||'Utilise le lien PayPal officiel ci-dessous.');await safeLog(guild.id,'acces_total',{content:`⚠️ Lien PayPal modifié par <@${interaction.user.id}>.`});return safeInteractionReply(interaction,{content:'✅ Paiement PayPal configuré.',flags:MessageFlags.Ephemeral})}
         if(sub==='objectif'){setConfig(guild.id,'settings','monthlyGoal',interaction.options.getNumber('montant'));await refreshBusinessPanels(guild);return safeInteractionReply(interaction,{content:'✅ Objectif mensuel mis à jour.',flags:MessageFlags.Ephemeral})}
