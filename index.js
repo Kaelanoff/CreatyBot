@@ -15,7 +15,7 @@ if (!process.env.TOKEN) {
 }
 
 const client = new Client({
-  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers],
+  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers, GatewayIntentBits.GuildInvites],
   partials: [Partials.Channel, Partials.GuildMember, Partials.User],
   presence: { status: 'online', activities: [{ name: 'Creaty Bot', type: ActivityType.Playing }] }
 });
@@ -41,7 +41,7 @@ const PROJECT_STAGES = [
 const DESIGN_STAGES = ['À faire', 'En création', 'En validation', 'Corrections', 'Terminé'];
 
 const CHANNELS = [
-  ['bienvenue','Bienvenue'],['depart','À bientôt'],
+  ['bienvenue','Bienvenue'],['depart','À bientôt'],['invite_tracker','Invite Tracker'],
   ['reglement','Règlement'],['annonces','Annonces'],['info','Informations'],['roadmap','Roadmap'],['liens','Nos liens'],['faq','FAQ'],['sondages','Sondages'],
   ['ticket','Ticket'],['attente_vocale','Attente vocale'],['support_premium','Support prioritaire'],
   ['discussion','Discussion'],['media','Média'],['suggestion','Suggestions'],['vos_bots','Vos bots'],['presentation','Présentation'],['evenements','Événements'],
@@ -84,7 +84,7 @@ const CATEGORIES = [
 ];
 
 const SALON_CONFIG_GROUPS = {
-  aeroport: ['cat_aeroport','bienvenue','depart'],
+  aeroport: ['cat_aeroport','bienvenue','depart','invite_tracker'],
   hub: ['cat_hub','reglement','annonces','info','roadmap','liens','faq','sondages'],
   support: ['cat_support','ticket','attente_vocale','support_premium','tickets','tickets_premium'],
   communaute: ['cat_communaute','discussion','media','suggestion','vos_bots','presentation','evenements'],
@@ -1268,7 +1268,7 @@ function channelPermissionProfile(key){
   const publicStaffWriters=uniqueKeys([...PERMISSION_GROUPS.moderation,...PERMISSION_GROUPS.direction,...PERMISSION_GROUPS.foundation]);
 
   // PUBLIC / INFORMATIONS : tout le monde peut lire, seuls les rôles responsables peuvent écrire.
-  if(['bienvenue','depart','reglement','annonces','info','roadmap','liens','faq'].includes(key))
+  if(['bienvenue','depart','invite_tracker','reglement','annonces','info','roadmap','liens','faq'].includes(key))
     return {public:true,mode:'readonly',roles:staff,writers:publicStaffWriters};
 
   // PANNEAUX PUBLICS : tout le monde voit et interagit, seuls les responsables écrivent.
@@ -1745,6 +1745,109 @@ const commands=[
 ];
 
 
+
+const inviteCache=new Map();
+
+async function refreshGuildInviteCache(guild){
+  try{
+    const invites=await guild.invites.fetch();
+    inviteCache.set(
+      guild.id,
+      new Map(invites.map(invite=>[
+        invite.code,
+        {
+          uses:Number(invite.uses||0),
+          inviterId:invite.inviter?.id||null,
+          inviterTag:invite.inviter?.tag||null,
+          code:invite.code
+        }
+      ]))
+    );
+    return true;
+  }catch(error){
+    console.warn(`⚠️ Impossible de récupérer les invitations de ${guild.name} : ${error.message}`);
+    inviteCache.set(guild.id,new Map());
+    return false;
+  }
+}
+
+async function detectUsedInvite(guild){
+  const previous=inviteCache.get(guild.id)||new Map();
+
+  try{
+    const currentInvites=await guild.invites.fetch();
+    let usedInvite=null;
+
+    for(const invite of currentInvites.values()){
+      const oldUses=Number(previous.get(invite.code)?.uses||0);
+      const newUses=Number(invite.uses||0);
+
+      if(newUses>oldUses){
+        usedInvite=invite;
+        break;
+      }
+    }
+
+    inviteCache.set(
+      guild.id,
+      new Map(currentInvites.map(invite=>[
+        invite.code,
+        {
+          uses:Number(invite.uses||0),
+          inviterId:invite.inviter?.id||null,
+          inviterTag:invite.inviter?.tag||null,
+          code:invite.code
+        }
+      ]))
+    );
+
+    return usedInvite;
+  }catch(error){
+    await logError(guild.id,error,`Détection de l'invitation utilisée sur ${guild.name}`);
+    return null;
+  }
+}
+
+async function sendInviteTrackerMessage(member,invite){
+  const guild=member.guild;
+  const c=getConfig(guild.id);
+
+  if(!c.channels.invite_tracker){
+    console.warn(`⚠️ Salon Invite Tracker non configuré sur ${guild.name}`);
+    return;
+  }
+
+  const ch=await guild.channels.fetch(c.channels.invite_tracker).catch(()=>null);
+  if(!isUsableTextChannel(ch)){
+    await logError(
+      guild.id,
+      new Error('Le salon Invite Tracker configuré est introuvable ou non textuel.'),
+      `Invite Tracker pour ${member.user.tag}`
+    );
+    return;
+  }
+
+  let description;
+
+  if(invite?.inviter){
+    description=
+      `<@${member.id}> vient de rejoindre le serveur grâce à l'invitation de <@${invite.inviter.id}>.\n\n`+
+      `**Nouveau membre :** ${member.user.tag}\n`+
+      `**Invité par :** ${invite.inviter.tag}\n`+
+      `**Code utilisé :** \`${invite.code}\`\n`+
+      `**Utilisations du lien :** ${Number(invite.uses||0)}`;
+  }else{
+    description=
+      `<@${member.id}> vient de rejoindre le serveur.\n\n`+
+      `L'invitation utilisée n'a pas pu être identifiée. Cela peut arriver avec une URL personnalisée, une invitation supprimée ou si le bot n'a pas la permission **Gérer le serveur**.`;
+  }
+
+  await ch.send({
+    embeds:[embed('📨 Nouvelle invitation détectée',description,0x5865F2)],
+    allowedMentions:{users:[member.id,invite?.inviter?.id].filter(Boolean)}
+  });
+}
+
 let shuttingDown=false;
 
 async function gracefulShutdown(signal){
@@ -1778,8 +1881,24 @@ client.once(Events.ClientReady, async()=>{
   ensureFiles();getDb();
   const cfg=migrateConfig(readJson(CONFIG_FILE));writeJson(CONFIG_FILE,cfg);
   for(const guild of client.guilds.cache.values()){
-    try{await guild.commands.set(commands.map(c=>c.toJSON()));console.log(`✅ Commandes installées sur ${guild.name}`);}catch(e){await logError(guild.id,e,`Installation des commandes sur ${guild.name}`)}
+    try{
+      await guild.commands.set(commands.map(c=>c.toJSON()));
+      console.log(`✅ Commandes installées sur ${guild.name}`);
+    }catch(e){
+      await logError(guild.id,e,`Installation des commandes sur ${guild.name}`);
+    }
+
+    await refreshGuildInviteCache(guild);
   }
+});
+
+
+client.on(Events.InviteCreate,async invite=>{
+  if(invite.guild)await refreshGuildInviteCache(invite.guild);
+});
+
+client.on(Events.InviteDelete,async invite=>{
+  if(invite.guild)await refreshGuildInviteCache(invite.guild);
 });
 
 client.on(Events.GuildMemberAdd,async member=>{
@@ -1787,6 +1906,11 @@ client.on(Events.GuildMemberAdd,async member=>{
   const c=getConfig(guild.id);
 
   console.log(`👋 Arrivée détectée : ${member.user.tag} (${member.id}) sur ${guild.name}`);
+
+  // Détection de l'invitation utilisée. Ce système est indépendant
+  // du message de bienvenue et du rôle Nouveau.
+  const usedInvite=await detectUsedInvite(guild);
+  await sendInviteTrackerMessage(member,usedInvite);
 
   // 1) Attribution du rôle Nouveau si configuré.
   if(c.roles.nouveau){
