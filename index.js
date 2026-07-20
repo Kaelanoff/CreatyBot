@@ -244,6 +244,7 @@ function migrateConfig(data) {
     if (typeof c.settings.paymentMessage !== 'string') c.settings.paymentMessage = '';
     if (typeof c.settings.monthlyGoal !== 'number') c.settings.monthlyGoal = 0;
     if (typeof c.settings.linksText !== 'string') c.settings.linksText = '';
+    if (typeof c.settings.monthlyRevenueResetAt !== 'string') c.settings.monthlyRevenueResetAt = '';
   }
   return data;
 }
@@ -1114,7 +1115,32 @@ async function createTicket(guild,userId,type,premium=false,linkedOrderId=null){
 
 function salesForGuild(guildId){return Object.values(getDb().sales).filter(x=>x.guildId===guildId)}
 function inRange(date,start){return new Date(date)>=start}
-function revenueNumbers(guildId){const sales=salesForGuild(guildId),now=new Date();const day=new Date(now);day.setHours(0,0,0,0);const week=new Date(now);week.setDate(now.getDate()-6);week.setHours(0,0,0,0);const month=new Date(now.getFullYear(),now.getMonth(),1);const sum=a=>a.reduce((n,x)=>n+Number(x.amount||0),0);return{day:sum(sales.filter(x=>inRange(x.createdAt,day))),week:sum(sales.filter(x=>inRange(x.createdAt,week))),month:sum(sales.filter(x=>inRange(x.createdAt,month))),total:sum(sales)}}
+function revenueNumbers(guildId){
+  const sales=salesForGuild(guildId),now=new Date();
+  const day=new Date(now);day.setHours(0,0,0,0);
+  const week=new Date(now);week.setDate(now.getDate()-6);week.setHours(0,0,0,0);
+  const monthStart=new Date(now.getFullYear(),now.getMonth(),1);
+
+  const c=getConfig(guildId);
+  const resetAtRaw=c.settings?.monthlyRevenueResetAt||'';
+  const resetAt=resetAtRaw?new Date(resetAtRaw):null;
+
+  // Le reset ne supprime aucune vente.
+  // Il change uniquement le point de départ du compteur "Ce mois".
+  const monthlyStart=
+    resetAt && !Number.isNaN(resetAt.getTime()) && resetAt>monthStart
+      ? resetAt
+      : monthStart;
+
+  const sum=a=>a.reduce((n,x)=>n+Number(x.amount||0),0);
+
+  return{
+    day:sum(sales.filter(x=>inRange(x.createdAt,day))),
+    week:sum(sales.filter(x=>inRange(x.createdAt,week))),
+    month:sum(sales.filter(x=>inRange(x.createdAt,monthlyStart))),
+    total:sum(sales)
+  };
+}
 function revenueText(guildId){if(!guildId)return 'Aucune donnée.';const r=revenueNumbers(guildId);return `Aujourd’hui : **${r.day.toFixed(2)} €**\nCette semaine : **${r.week.toFixed(2)} €**\nCe mois : **${r.month.toFixed(2)} €**\nTotal : **${r.total.toFixed(2)} €**`}
 function statsText(guildId){if(!guildId)return 'Les statistiques apparaîtront après initialisation.';const db=getDb();const vals=k=>Object.values(db[k]).filter(x=>x.guildId===guildId);const quotes=vals('quotes'),orders=vals('orders'),payments=vals('payments'),sales=vals('sales'),projects=vals('projects'),clients=vals('clients');const accepted=quotes.filter(x=>['Accepté par le client','Transformé en commande'].includes(x.status)).length;const r=revenueNumbers(guildId);const avg=sales.length?r.total/sales.length:0;return `Devis : **${quotes.length}**\nDevis acceptés : **${accepted}**\nTaux de conversion : **${quotes.length?((accepted/quotes.length)*100).toFixed(1):'0'}%**\nCommandes : **${orders.length}**\nCommandes payées : **${orders.filter(x=>['Payée','Projet créé','Terminée'].includes(x.status)).length}**\nPaiements : **${payments.length}**\nVentes : **${sales.length}**\nCA jour : **${r.day.toFixed(2)} €**\nCA semaine : **${r.week.toFixed(2)} €**\nCA mois : **${r.month.toFixed(2)} €**\nPanier moyen : **${avg.toFixed(2)} €**\nProjets actifs : **${projects.filter(x=>x.stageIndex<PROJECT_STAGES.length-1).length}**\nClients : **${clients.length}**\nClients Premium : **${clients.filter(x=>x.premium).length}**`}
 function goalText(c,guildId){if(!c||!guildId)return 'Objectif non disponible.';const goal=Number(c.settings.monthlyGoal||0),done=revenueNumbers(guildId).month,left=Math.max(0,goal-done),pct=goal>0?Math.min(100,(done/goal)*100):0;return `Objectif mensuel : **${goal.toFixed(2)} €**\nMontant réalisé : **${done.toFixed(2)} €**\nMontant restant : **${left.toFixed(2)} €**\nProgression : **${pct.toFixed(1)}%**`}
@@ -1702,6 +1728,8 @@ const commands=[
   new SlashCommandBuilder().setName('projet-reparer').setDescription('Créer ou réparer le projet lié à une commande payée.')
     .addStringOption(o=>o.setName('commande').setDescription('Exemple : CMD-0001').setRequired(true)),
 
+  new SlashCommandBuilder().setName('reset').setDescription('Réinitialisation limitée.')
+    .addSubcommand(s=>s.setName('tout-gagne').setDescription('Remet uniquement le montant gagné ce mois à 0 €.')),
   new SlashCommandBuilder().setName('paiement').setDescription('Gestion de secours des paiements.')
     .addSubcommand(s=>s.setName('en-attente').setDescription('Voir les paiements en attente de validation.'))
     .addSubcommand(s=>s.setName('relancer').setDescription('Renvoyer un paiement à vérifier à la Fondation.')
@@ -1928,6 +1956,37 @@ client.on(Events.InteractionCreate,async interaction=>{
           await journal(guild.id,`Permissions globales appliquées par <@${interaction.user.id}> : ${result.channels} salons, ${result.categories} catégories.`);
           const errors=result.errors.length?`\n\n⚠️ **Erreurs (${result.errors.length}) :**\n${result.errors.slice(0,10).map(x=>`• ${x}`).join('\n')}`:'';
           return interaction.editReply({content:`✅ Permissions appliquées.\n\n**Configuration détectée :**\n• Salons enregistrés : **${result.configuredChannels}**\n• Catégories enregistrées : **${result.configuredCategories}**\n\n**Permissions réellement appliquées :**\n• Salons : **${result.channels}**\n• Catégories : **${result.categories}**\n• Éléments manquants/introuvables : **${result.skipped}**${errors}`.slice(0,1900)});
+        }
+      }
+
+      if(interaction.commandName==='reset'){
+        if(!isAdmin(interaction.member)&&!configuredRoleIds(c,['fondateur','cofondateur']).some(id=>interaction.member.roles.cache.has(id)))
+          return safeInteractionReply(interaction,{
+            content:'❌ Réservé à l’administration / Fondation.',
+            flags:MessageFlags.Ephemeral
+          });
+
+        const sub=interaction.options.getSubcommand();
+
+        if(sub==='tout-gagne'){
+          // On ne supprime NI ventes, NI commandes, NI paiements, NI factures.
+          // On mémorise simplement maintenant comme nouveau départ du compteur mensuel.
+          setConfig(guild.id,'settings','monthlyRevenueResetAt',new Date().toISOString());
+
+          await refreshBusinessPanels(guild);
+
+          await journal(
+            guild.id,
+            `Compteur du montant gagné ce mois remis à 0 € par <@${interaction.user.id}>. Aucune donnée commerciale supprimée.`
+          );
+
+          return safeInteractionReply(interaction,{
+            content:
+              '✅ **Montant gagné ce mois remis à 0,00 €**.\n\n'+
+              'Aucune commande, vente, facture, paiement, client ou historique n’a été supprimé.\n'+
+              'Les panneaux financiers ont été actualisés automatiquement.',
+            flags:MessageFlags.Ephemeral
+          });
         }
       }
 
