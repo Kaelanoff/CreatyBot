@@ -1045,7 +1045,7 @@ function channelPermissionProfile(key){
   // COMMERCIAL : stats/CA/objectifs = lecture avec responsables qui publient ; autres = travail en chat.
   if(['statistiques_commerciales','objectifs','chiffre_affaires'].includes(key))
     return {public:false,mode:'readonly',roles:commercialManagement,writers:commercialManagement};
-  if(['ventes','devis_commerciaux','commandes_commerciales','discussion_commerciale'].includes(key))
+  if(['ventes','devis_commerciaux','commandes_commerciales','archives_devis','archives_commandes','discussion_commerciale'].includes(key))
     return {public:false,mode:'chat',roles:commercialManagement};
 
   // DESIGN : salons de travail, envoi d'images/fichiers/liens autorisé.
@@ -1085,22 +1085,78 @@ function categoryPermissionRoleKeys(key){
 
 async function applyAllConfiguredPermissions(guild,c){
   const me=guild.members.me||await guild.members.fetchMe();
-  if(!me.permissions.has(PermissionFlagsBits.ManageChannels)) throw new Error('Le bot ne possède pas la permission Gérer les salons.');
+  if(!me.permissions.has(PermissionFlagsBits.ManageChannels))
+    throw new Error('Le bot ne possède pas la permission Gérer les salons.');
 
-  const configuredRoleMap=new Map(ROLES.map(([key])=>[key,c.roles[key]]).filter(([,id])=>Boolean(id)));
+  const configuredRoleMap=new Map(
+    ROLES.map(([key])=>[key,c.roles[key]]).filter(([,id])=>Boolean(id))
+  );
   const managedRoleIds=new Set([...configuredRoleMap.values()]);
   const result={channels:0,categories:0,skipped:0,errors:[]};
 
-  const readPerms=[PermissionFlagsBits.ViewChannel,PermissionFlagsBits.ReadMessageHistory];
-  const interactivePerms=[...readPerms,PermissionFlagsBits.AddReactions,PermissionFlagsBits.UseExternalEmojis,PermissionFlagsBits.UseApplicationCommands];
-  const chatPerms=[...interactivePerms,PermissionFlagsBits.SendMessages,PermissionFlagsBits.AttachFiles,PermissionFlagsBits.EmbedLinks,PermissionFlagsBits.CreatePublicThreads,PermissionFlagsBits.CreatePrivateThreads,PermissionFlagsBits.SendMessagesInThreads];
-  const voicePerms=[PermissionFlagsBits.ViewChannel,PermissionFlagsBits.Connect,PermissionFlagsBits.Speak,PermissionFlagsBits.Stream,PermissionFlagsBits.UseVAD];
-  const writeBits=[PermissionFlagsBits.SendMessages,PermissionFlagsBits.AttachFiles,PermissionFlagsBits.EmbedLinks,PermissionFlagsBits.CreatePublicThreads,PermissionFlagsBits.CreatePrivateThreads,PermissionFlagsBits.SendMessagesInThreads];
+  const readPerms=[
+    PermissionFlagsBits.ViewChannel,
+    PermissionFlagsBits.ReadMessageHistory
+  ];
 
+  const interactivePerms=[
+    ...readPerms,
+    PermissionFlagsBits.AddReactions,
+    PermissionFlagsBits.UseExternalEmojis,
+    PermissionFlagsBits.UseApplicationCommands
+  ];
+
+  const chatPerms=[
+    ...interactivePerms,
+    PermissionFlagsBits.SendMessages,
+    PermissionFlagsBits.AttachFiles,
+    PermissionFlagsBits.EmbedLinks,
+    PermissionFlagsBits.CreatePublicThreads,
+    PermissionFlagsBits.CreatePrivateThreads,
+    PermissionFlagsBits.SendMessagesInThreads
+  ];
+
+  const voicePerms=[
+    PermissionFlagsBits.ViewChannel,
+    PermissionFlagsBits.Connect,
+    PermissionFlagsBits.Speak,
+    PermissionFlagsBits.Stream,
+    PermissionFlagsBits.UseVAD
+  ];
+
+  const writeBits=[
+    PermissionFlagsBits.SendMessages,
+    PermissionFlagsBits.AttachFiles,
+    PermissionFlagsBits.EmbedLinks,
+    PermissionFlagsBits.CreatePublicThreads,
+    PermissionFlagsBits.CreatePrivateThreads,
+    PermissionFlagsBits.SendMessagesInThreads
+  ];
+
+  /*
+   * IMPORTANT :
+   * On conserve uniquement les overwrites qui ne concernent pas les rôles
+   * configurés par Creaty Bot (ex: permissions manuelles d'un membre précis,
+   * d'un bot externe ou d'un rôle non géré).
+   *
+   * Tous les rôles Creaty Bot qui ne donnent PAS accès au salon restent NEUTRES.
+   * On ne leur met surtout plus "Refuser Voir le salon".
+   *
+   * Exemple : un utilisateur possède Membre + Client.
+   * - salon membre : Membre = autorisé, Client = neutre
+   * - salon client : Client = autorisé, Membre = neutre
+   *
+   * Ainsi, un deuxième rôle ne bloque jamais l'accès donné par un premier rôle.
+   */
   function preservedOverwrites(target){
     return target.permissionOverwrites.cache
       .filter(o=>o.id!==guild.roles.everyone.id&&!managedRoleIds.has(o.id))
-      .map(o=>({id:o.id,type:o.type,allow:o.allow.bitfield,deny:o.deny.bitfield}));
+      .map(o=>({
+        id:o.id,
+        type:o.type,
+        allow:o.allow.bitfield,
+        deny:o.deny.bitfield
+      }));
   }
 
   function allowedPermsForMode(mode){
@@ -1113,56 +1169,168 @@ async function applyAllConfiguredPermissions(guild,c){
   function overwritesFor(target,profile){
     const rows=[];
     const mode=profile.mode||'readonly';
-    const basePerms=allowedPermsForMode(mode);
     const roleKeys=uniqueKeys(profile.roles||[]);
     const writerKeys=uniqueKeys(profile.writers||[]);
-    const allowedRoleIds=new Set(roleKeys.map(k=>configuredRoleMap.get(k)).filter(Boolean));
-    const writerRoleIds=new Set(writerKeys.map(k=>configuredRoleMap.get(k)).filter(Boolean));
 
+    const allowedRoleIds=new Set(
+      roleKeys.map(k=>configuredRoleMap.get(k)).filter(Boolean)
+    );
+    const writerRoleIds=new Set(
+      writerKeys.map(k=>configuredRoleMap.get(k)).filter(Boolean)
+    );
+
+    /*
+     * PUBLIC :
+     * @everyone donne l'accès.
+     * Aucun autre rôle n'est refusé.
+     * Les autres rôles restent donc en NEUTRE.
+     */
     if(profile.public){
-      rows.push({id:guild.roles.everyone.id,allow:basePerms,deny:mode==='readonly'||mode==='interactive'?writeBits:[]});
+      if(mode==='chat'){
+        rows.push({
+          id:guild.roles.everyone.id,
+          allow:chatPerms,
+          deny:[]
+        });
+      }else if(mode==='voice'){
+        rows.push({
+          id:guild.roles.everyone.id,
+          allow:voicePerms,
+          deny:[]
+        });
+      }else{
+        // Lecture / panneau public : tout le monde voit mais ne parle pas.
+        rows.push({
+          id:guild.roles.everyone.id,
+          allow:allowedPermsForMode(mode),
+          deny:writeBits
+        });
+      }
     }else{
-      rows.push({id:guild.roles.everyone.id,allow:[],deny:[PermissionFlagsBits.ViewChannel]});
+      /*
+       * PRIVÉ :
+       * Seul @everyone reçoit un refus de visibilité.
+       * Les rôles autorisés reçoivent ensuite explicitement l'accès.
+       * Tous les autres rôles configurés restent NEUTRES.
+       */
+      const everyoneDeny=[PermissionFlagsBits.ViewChannel];
+
+      // Pour un salon privé lecture seule / panneau, on bloque aussi l'écriture
+      // au niveau @everyone. Les rôles écrivains la récupèrent explicitement.
+      if(mode==='readonly'||mode==='interactive')
+        everyoneDeny.push(...writeBits);
+
+      rows.push({
+        id:guild.roles.everyone.id,
+        allow:[],
+        deny:everyoneDeny
+      });
     }
 
-    for(const [roleKey,roleId] of configuredRoleMap.entries()){
-      if(!allowedRoleIds.has(roleId)){
-        rows.push({id:roleId,allow:[],deny:[PermissionFlagsBits.ViewChannel]});
-        continue;
-      }
+    /*
+     * On ajoute UNIQUEMENT les rôles qui donnent réellement un accès.
+     * Aucun overwrite n'est créé pour les rôles non concernés => NEUTRE.
+     */
+    for(const roleId of allowedRoleIds){
+      const canWrite=
+        mode==='chat'||
+        mode==='voice'||
+        writerRoleIds.has(roleId);
 
-      const canWrite=mode==='chat'||mode==='voice'||writerRoleIds.has(roleId);
-      const allow=mode==='voice'?voicePerms:canWrite?chatPerms:mode==='interactive'?interactivePerms:readPerms;
-      rows.push({id:roleId,allow,deny:(!canWrite&&mode!=='voice')?writeBits:[]});
+      let allow;
+      if(mode==='voice') allow=voicePerms;
+      else if(canWrite) allow=chatPerms;
+      else if(mode==='interactive') allow=interactivePerms;
+      else allow=readPerms;
+
+      rows.push({
+        id:roleId,
+        allow,
+        deny:[]
+      });
+    }
+
+    /*
+     * Un rôle "writer" peut ne pas être présent dans profile.roles.
+     * On lui donne quand même l'accès complet nécessaire.
+     */
+    for(const roleId of writerRoleIds){
+      if(allowedRoleIds.has(roleId)) continue;
+      rows.push({
+        id:roleId,
+        allow:mode==='voice'?voicePerms:chatPerms,
+        deny:[]
+      });
     }
 
     return [...rows,...preservedOverwrites(target)];
   }
 
-  for(const [key,label] of CHANNELS){
-    const channelId=c.channels[key];
-    if(!channelId){result.skipped++;continue;}
-    const channel=await guild.channels.fetch(channelId).catch(()=>null);
-    if(!channel){result.skipped++;continue;}
-    try{
-      let profile=channelPermissionProfile(key);
-      if(channel.type===ChannelType.GuildVoice||channel.type===ChannelType.GuildStageVoice) profile={...profile,mode:'voice'};
-      await channel.permissionOverwrites.set(overwritesFor(channel,profile),`Creaty Bot /salon perm — ${label}`);
-      result.channels++;
-    }catch(error){result.errors.push(`${label}: ${error.message}`);}
-  }
-
+  /*
+   * On applique d'abord les catégories configurées.
+   * Les rôles non concernés restent neutres.
+   */
   for(const [key,label] of CATEGORIES){
     const categoryId=c.categories[key];
     if(!categoryId){result.skipped++;continue;}
+
     const category=await guild.channels.fetch(categoryId).catch(()=>null);
-    if(!category||category.type!==ChannelType.GuildCategory){result.skipped++;continue;}
+    if(!category||category.type!==ChannelType.GuildCategory){
+      result.skipped++;
+      continue;
+    }
+
     try{
-      const profile={public:false,mode:'chat',roles:categoryPermissionRoleKeys(key)};
-      await category.permissionOverwrites.set(overwritesFor(category,profile),`Creaty Bot /salon perm — ${label}`);
+      const profile={
+        public:false,
+        mode:'chat',
+        roles:categoryPermissionRoleKeys(key)
+      };
+
+      await category.permissionOverwrites.set(
+        overwritesFor(category,profile),
+        `Creaty Bot /salon perm — ${label}`
+      );
       result.categories++;
-    }catch(error){result.errors.push(`${label}: ${error.message}`);}
+    }catch(error){
+      result.errors.push(`${label}: ${error.message}`);
+    }
   }
+
+  /*
+   * Puis chaque salon configuré reçoit sa logique propre.
+   * Exemple :
+   * - Règlement / Bienvenue : @everyone autorisé, autres rôles neutres.
+   * - Fondation : @everyone refusé, Fondation autorisée, autres rôles neutres.
+   * - Client : @everyone refusé, Client autorisé, Membre neutre.
+   */
+  for(const [key,label] of CHANNELS){
+    const channelId=c.channels[key];
+    if(!channelId){result.skipped++;continue;}
+
+    const channel=await guild.channels.fetch(channelId).catch(()=>null);
+    if(!channel){result.skipped++;continue;}
+
+    try{
+      let profile=channelPermissionProfile(key);
+
+      if(
+        channel.type===ChannelType.GuildVoice||
+        channel.type===ChannelType.GuildStageVoice
+      ){
+        profile={...profile,mode:'voice'};
+      }
+
+      await channel.permissionOverwrites.set(
+        overwritesFor(channel,profile),
+        `Creaty Bot /salon perm — ${label}`
+      );
+      result.channels++;
+    }catch(error){
+      result.errors.push(`${label}: ${error.message}`);
+    }
+  }
+
   return result;
 }
 const commands=[
