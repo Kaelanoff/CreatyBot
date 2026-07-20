@@ -287,7 +287,7 @@ async function safeLog(guildId, channelKey, payload) {
     const guild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId);
     const c = getConfig(guildId);
     const ch = c.channels[channelKey] ? await guild.channels.fetch(c.channels[channelKey]).catch(()=>null) : null;
-    if (ch?.isTextBased()) await ch.send(payload);
+    if (ch && typeof ch.isTextBased==='function' && ch.isTextBased() && typeof ch.send==='function') await ch.send(payload);
   } catch (e) { console.error(`Log ${channelKey} impossible:`, e); }
 }
 
@@ -1608,11 +1608,86 @@ client.once(Events.ClientReady, async()=>{
 });
 
 client.on(Events.GuildMemberAdd,async member=>{
-  const c=getConfig(member.guild.id);if(!c.roles.nouveau)return;
-  try{await applyRole(member,c.roles.nouveau,'add',member.guild.id,'Nouveau')}catch(e){await logError(member.guild.id,e,`Attribution du rôle Nouveau à ${member.user.tag}`)}
+  const guild=member.guild;
+  const c=getConfig(guild.id);
+
+  console.log(`👋 Arrivée détectée : ${member.user.tag} (${member.id}) sur ${guild.name}`);
+
+  // 1) Attribution du rôle Nouveau si configuré.
+  if(c.roles.nouveau){
+    try{
+      await applyRole(member,c.roles.nouveau,'add',guild.id,'Nouveau');
+    }catch(error){
+      await logError(guild.id,error,`Attribution du rôle Nouveau à ${member.user.tag}`);
+    }
+  }else{
+    console.warn(`⚠️ Rôle Nouveau non configuré sur ${guild.name}`);
+  }
+
+  // 2) Message de bienvenue indépendant du rôle Nouveau.
+  // Avant, le "return" lorsque le rôle Nouveau n'était pas configuré empêchait
+  // totalement l'envoi du message de bienvenue.
+  if(c.channels.bienvenue){
+    try{
+      const ch=await guild.channels.fetch(c.channels.bienvenue).catch(()=>null);
+      if(ch && typeof ch.isTextBased==='function' && ch.isTextBased() && typeof ch.send==='function'){
+        await ch.send({
+          content:`<@${member.id}>`,
+          embeds:[embed(
+            '👋 Bienvenue !',
+            `Bienvenue <@${member.id}> sur **${guild.name}** !\n\n`+
+            `Nous sommes heureux de t'accueillir parmi nous.\n`+
+            `Commence par consulter le règlement et profite du serveur !`,
+            0x57F287
+          )],
+          allowedMentions:{users:[member.id]}
+        });
+      }else{
+        throw new Error('Le salon Bienvenue configuré est introuvable ou non textuel.');
+      }
+    }catch(error){
+      await logError(guild.id,error,`Message de bienvenue pour ${member.user.tag}`);
+    }
+  }else{
+    console.warn(`⚠️ Salon Bienvenue non configuré sur ${guild.name}`);
+  }
+
+  await safeLog(guild.id,'logs_bot',{
+    content:`👋 Arrivée : **${member.user.tag}** (<@${member.id}>)`
+  });
 });
 
-client.on(Events.GuildMemberRemove,async member=>{const c=getConfig(member.guild.id);const ch=await member.guild.channels.fetch(c.channels.depart).catch(()=>null);if(ch && typeof ch.isTextBased==='function' && ch.isTextBased())await ch.send({embeds:[embed('👋 À bientôt',`${member.user.tag} a quitté le serveur.`)]}).catch(()=>{});});
+client.on(Events.GuildMemberRemove,async member=>{
+  const guild=member.guild;
+  const c=getConfig(guild.id);
+
+  console.log(`👋 Départ détecté : ${member.user.tag} (${member.id}) de ${guild.name}`);
+
+  if(c.channels.depart){
+    try{
+      const ch=await guild.channels.fetch(c.channels.depart).catch(()=>null);
+      if(ch && typeof ch.isTextBased==='function' && ch.isTextBased() && typeof ch.send==='function'){
+        await ch.send({
+          embeds:[embed(
+            '👋 À bientôt',
+            `**${member.user.tag}** a quitté **${guild.name}**.\nNous lui souhaitons une bonne continuation.`,
+            0xED4245
+          )]
+        });
+      }else{
+        throw new Error('Le salon À bientôt configuré est introuvable ou non textuel.');
+      }
+    }catch(error){
+      await logError(guild.id,error,`Message de départ pour ${member.user.tag}`);
+    }
+  }else{
+    console.warn(`⚠️ Salon À bientôt non configuré sur ${guild.name}`);
+  }
+
+  await safeLog(guild.id,'logs_bot',{
+    content:`👋 Départ : **${member.user.tag}** (${member.id})`
+  });
+});
 
 
 async function safeInteractionReply(interaction, payload) {
